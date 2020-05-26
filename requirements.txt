@@ -3,6 +3,7 @@ pandas
 scikit-learn
 networkx
 nltk
+python-louvain
 twython
 tqdm
 tweet-preprocessor
