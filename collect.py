@@ -4,6 +4,7 @@ import random
 from tqdm import tqdm
 import numpy as np
 import operator
+import os
 
 import logging
 
@@ -55,6 +56,7 @@ def random_subset(node_dic, mode, random_subset_size=None):
 	nb_nodes = len(node_dic)
 	node_list = list(node_dic.keys())
 	node_weights = list(node_dic.values())
+	# Renormalize node weights
 	node_weights = np.array(node_weights) / np.sum(np.array(node_weights))
 	#print(node_weights,np.sum(node_weights))
 	if mode == 'constant':
@@ -80,7 +82,7 @@ def random_subset(node_dic, mode, random_subset_size=None):
 	return r_node_dic
 
 def spiky_ball(username_list, graph_handle, exploration_depth=4, 
-				mode='percent',random_subset_size=None,spread_type='sharp'):
+				mode='percent',random_subset_size=None,spread_type='sharp',logger_level='error'):
 	""" Collect the tweets of the users and their mentions
 		make an edge list user -> mention
 		and save each user edge list to a file
@@ -91,6 +93,8 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
 		for key,value in graph_handle.rules.items():
 			print(key,value)
 		print('---')
+	if logger_level == 'verbose': # display info
+		logger.setLevel(logging.DEBUG) 
 	total_username_list = []
 	#total_username_list += username_list
 	new_username_list = username_list.copy()
@@ -133,8 +137,8 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
 
 def save_data(nodes_df,edges_df,data_path):
 	# Save to json file
-	edgefilename = data_path + 'edges_data' + '.json'
-	nodefilename = data_path + 'nodes_data' + '.json'
+	edgefilename = os.path.join(data_path, 'edges_data.json')
+	nodefilename = os.path.join(data_path, 'nodes_data.json')
 	print('Writing',edgefilename)
 	edges_df.to_json(edgefilename)
 	print('Writing',nodefilename)
@@ -142,8 +146,8 @@ def save_data(nodes_df,edges_df,data_path):
 	return None
 
 def load_data(data_path):
-	nodesfilename = data_path + 'nodes_data.json'
-	edgesfilename =  data_path + 'edges_data.json'
+	nodesfilename = os.path.join(data_path, 'nodes_data.json')
+	edgesfilename = os.path.join(data_path, 'edges_data.json')
 	print('Loading',nodesfilename)
 	nodes_df = pd.read_json(nodesfilename)
 	print('Loading',edgesfilename)
