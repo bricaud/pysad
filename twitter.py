@@ -2,12 +2,10 @@
 from twython import Twython
 import json
 import pandas as pd
-
 from datetime import datetime, timedelta, time
 from twython import TwythonError, TwythonRateLimitError, TwythonAuthError  # to check the returned API errors
 
 from tqdm import tqdm
-
 
 class twitter_network:
 
@@ -25,8 +23,8 @@ class twitter_network:
     def get_neighbors(self, user):
         if not isinstance(user, str):
             return pd.DataFrame(), pd.DataFrame()
-        tweets_dic = self.get_user_tweets(user)
-        edges_df, node_df = self.edges_nodes_from_user(tweets_dic, user)
+        tweets_dic, tweets_meta = self.get_user_tweets(user)
+        edges_df, node_df = self.edges_nodes_from_user(tweets_meta)
         return node_df, edges_df
 
     def filter(self, node_df, edges_df):
@@ -39,26 +37,17 @@ class twitter_network:
         # filter edges according to their properties
         if edges_df.empty:
             return edges_df
-        edges_g = self.group_edges(edges_df)
-        users_to_remove = edges_g['mention'][edges_g['weight'] < self.rules['min_mentions']]
-        # Get names of indexes for which column Age has value 30
-        index_names = edges_df[edges_df['user'].isin(users_to_remove)].index
-        # Delete these row indexes from dataFrame
-        edges_df.drop(index_names, inplace=True)
-        return edges_df
+        return edges_df[edges_df['weight'] >= self.rules['min_mentions']]
 
     def neighbors_list(self, edges_df):
         # print(edges_df)
         # print(edges_df['mention'].unique())
-        users_connected = edges_df['mention'].unique().tolist()
+        users_connected = edges_df.index.droplevel(0).tolist()
         return users_connected
 
     def neighbors_with_weights(self, edges_df):
         user_list = self.neighbors_list(edges_df)
-        user_dic = {}
-        for user in user_list:
-            user_dic[user] = 1
-        return user_dic
+        return dict.fromkeys(user_list, 1)
 
     ###############################################################
     # Functions for extracting tweet info from the twitter API
@@ -123,122 +112,75 @@ class twitter_network:
         # Collect tweets from a username
         max_day_old = self.rules['max_day_old']
         count = self.rules['max_tweets_per_user']
-        tweets_dic = {'user': [], 'name': [], 'user_details': [], 'date': [],
-                      'text': [], 'favorite_count': [], 'retweet_count': [],
-                      'user_mentions': [], 'urls': [], 'hashtags': [], 'place': [], 'retweeted_from': []}
 
         # Test if ok
         try:
-            user_tweets = self.twitter_handle.get_user_timeline(screen_name=username,
-                                                                count=count, include_rts=True, tweet_mode='extended')
+            user_tweets_raw = self.twitter_handle.get_user_timeline(screen_name=username,
+                                                                count=count, include_rts=True,
+                                                                tweet_mode='extended', exclude_replies=False)
+            # make a dictionary
+            user_tweets = {x['id']: x for x in user_tweets_raw}
+            tweets_metadata = \
+                map(lambda x: (x[0], {'user': x[1]['user']['screen_name'],
+                    'mentions': list(map(lambda y: y['screen_name'], x[1]['entities']['user_mentions'])),
+                    'hashtags': list(map(lambda y: y['text'], x[1]['entities']['hashtags'])),
+                    'retweet_count': x[1]['retweet_count'],
+                    'favorite_count': x[1]['favorite_count']}),
+                     user_tweets.items())
+            return user_tweets, dict(tweets_metadata)
         except TwythonAuthError as e_auth:
             print('Cannot access to twitter API, authentification error. {}'.format(e_auth.error_code))
             if e_auth.error_code == 401:
                 print('Unauthorized access to user {}. Skipping.'.format(username))
-                return tweets_dic
+                return {}
             raise
         except TwythonRateLimitError as e_lim:
             print('API rate limit reached')
             print(e_lim)
             wait_time = int(e_lim.retry_after) - time.time()
             print('Retry after {} seconds.'.format(wait_time))
-            print('Entring sleep mode at:', time.ctime())
+            print('Entering sleep mode at:', time.ctime())
             print('Waking up at:', time.ctime(e_lim.retry_after + 1))
             time.sleep(wait_time + 1)
         except TwythonError as e:
             print('Twitter API returned error {} for user {}.'.format(e.error_code, username))
-            return tweets_dic
-        for raw_tweet in user_tweets:
-            # Check if the tweet date is not too old
-            time_struct = datetime.strptime(raw_tweet['created_at'], '%a %b %d %H:%M:%S +0000 %Y')
-            if (max_day_old is not None) and (time_struct < datetime.now() - timedelta(days=max_day_old)):
-                break  # stop iterating on the tweet list
-            # Structure the needed info in a dict
-            tweet_dic = self.extract_tweet_infos(raw_tweet)
-            tweets_dic['user'].append(tweet_dic['user'])
-            tweets_dic['name'].append(tweet_dic['name'])
-            tweets_dic['user_details'].append(tweet_dic['user_details'])
-            tweets_dic['date'].append(tweet_dic['date'])
-            tweets_dic['favorite_count'].append(tweet_dic['favorite_count'])
-            tweets_dic['retweet_count'].append(tweet_dic['retweet_count'])
-            tweets_dic['user_mentions'].append(tweet_dic['user_mentions'])
-            tweets_dic['urls'].append(tweet_dic['urls'])
-            tweets_dic['hashtags'].append(tweet_dic['hashtags'])
-            tweets_dic['place'].append(tweet_dic['place'])
-            tweets_dic['retweeted_from'].append(tweet_dic['retweeted_from'])
-            tweets_dic['text'].append(tweet_dic['text'])
+            return {}
 
-        return tweets_dic
-
-    def edges_nodes_from_user(self, tweets_dic, username):
+    def edges_nodes_from_user(self, tweets_meta):
         # Make an edge and node property dataframes
-        tweet_df = pd.DataFrame(tweets_dic)
-        edges_df = self.get_edges(tweet_df)
-        user_info_df = self.get_nodes_properties(tweet_df, username)
+        edges_df = self.get_edges(tweets_meta)
+        user_info_df = self.get_nodes_properties(tweets_meta)
         return edges_df, user_info_df
 
-    def get_edges(self, tweet_df):
+    def get_edges(self, tweets_meta):
         # Create the user -> mention table with their properties fom the list of tweets of a user
-
+        meta_df = pd.DataFrame.from_dict(tweets_meta, orient='index').explode('mentions').dropna()
         # Some bots to be removed from the collection
-        userstoremove_list = ['threader_app', 'threadreaderapp']
+        userstoremove = ['threader_app', 'threadreaderapp']
 
-        row_list = []
-        for idx, tweet in tweet_df.iterrows():
-            user = tweet['user']
-            mentions = tweet['user_mentions']
-            hashtags = tweet['hashtags']
-            tweet_date = tweet['date']
-            urls = tweet['urls']
-            text = tweet['text']
-            retweet_count = tweet['retweet_count']
-            favorite_count = tweet['favorite_count']
-            for m in mentions:
-                if m == user:  # skip self-mentions
-                    continue
-                if m in userstoremove_list:
-                    continue
-                row_list.append({'user': user, 'mention': m, 'weight': 1, 'hashtags': hashtags,
-                                 'date': tweet_date, 'urls': urls, 'text': text,
-                                 'retweet_count': retweet_count, 'favorite_count': favorite_count})
-        mention_df = pd.DataFrame(row_list)
-        return mention_df
+        filtered_meta_df = meta_df[~meta_df['mentions'].isin(userstoremove) &
+                                   ~meta_df['mentions'].isin(meta_df['user'])]
 
-    def get_nodes_properties(self, tweet_df, user):
+        # group by mentions and keep list of tweets for each mention
+        tmp = filtered_meta_df.groupby(['user', 'mentions']).apply(lambda x: (x.index.tolist(), len(x.index)))
+        edge_df = pd.DataFrame(tmp.tolist(), index=tmp.index)\
+            .rename(columns={0: 'tweet_id', 1: 'weight'})\
+            .sort_values('weight', ascending=False)
+
+        return edge_df
+
+    def get_nodes_properties(self, tweet_meta):
         nb_popular_tweets = 5
-        row_list = []
         # global properties
-        all_hashtags = []
-        for idx, tweet in tweet_df.iterrows():
-            all_hashtags += tweet['hashtags']
-        all_hashtags = [(x, all_hashtags.count(x)) for x in set(all_hashtags)]
-        # Get most popular tweets of user
-        tweet_df = tweet_df.sort_values(by='retweet_count', ascending=False)
-        for idx, tweet in tweet_df.head(nb_popular_tweets).iterrows():
-            user = tweet['user']
-            name = tweet['name']
-            user_details = tweet['user_details']
-            hashtags = tweet['hashtags']
-            tweet_date = tweet['date']
-            urls = tweet['urls']
-            text = tweet['text']
-            retweet_count = tweet['retweet_count']
-            favorite_count = tweet['favorite_count']
-            row_list.append({'user': user, 'name': name, 'user_details': user_details, 'all_hashtags': all_hashtags,
-                             'date': tweet_date, 'urls': urls, 'text': text, 'hashtags': hashtags,
-                             'retweet_count': retweet_count, 'favorite_count': favorite_count})
-        # If empty list of tweets
-        if not row_list:
-            row_list.append({'user': user, 'name': '', 'user_details': '', 'all_hashtags': [],
-                             'date': '', 'urls': [], 'text': '', 'hashtags': [],
-                             'retweet_count': 0, 'favorite_count': 0})
-        popular_tweets_df = pd.DataFrame(row_list)
-        return popular_tweets_df
+        meta_df = pd.DataFrame.from_dict(tweet_meta, orient='index')\
+            .sort_values('retweet_count', ascending=False)
+        # hashtags statistics
+        ht_df = meta_df.explode('hashtags').dropna()
+        htgb = ht_df.groupby(['hashtags']).size()
+        all_hashtags = pd.DataFrame(htgb).rename(columns={0: 'count'}).sort_values('count', ascending=False)
 
-    def group_edges(self, edge_df):
-        mention_grouped = edge_df.groupby(['user', 'mention']).agg(weight=('weight', sum))
-        mention_grouped.reset_index(level=['user', 'mention'], inplace=True)
-        return mention_grouped
+        # Get most popular tweets of user
+        return {'tweets': meta_df.head(nb_popular_tweets), 'all_hastags': all_hashtags}
 
 
 #####################################################
@@ -271,12 +213,12 @@ def reshape_edge_data(edge_df, min_weight):
 
 
 #############################################################
-## Functions for managing twitter accounts to follow
+# Functions for managing twitter accounts to follow
 #############################################################
 
 class initial_accounts:
     """ Handle the initial twitter accounts (load ans save them)
-	"""
+    """
 
     def __init__(self, accounts_file=None):
         if accounts_file is None:
@@ -287,7 +229,7 @@ class initial_accounts:
 
     def accounts(self, label=None):
         # if not self.accounts_dic:
-        #	self.load()
+        # self.load()
         if label is None:
             return self.accounts_dic
         self.check_label(label)
