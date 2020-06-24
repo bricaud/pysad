@@ -137,7 +137,7 @@ class twitter_network:
 		# Test if ok
 		try:
 			user_tweets = self.twitter_handle.get_user_timeline(screen_name = username,  
-											   count = count, include_rts = True, tweet_mode='extended')
+											   count = count, exclude_replies = False, include_rts = True, tweet_mode='extended')
 		except TwythonAuthError as e_auth:
 			print('Cannot access to twitter API, authentification error. {}'.format(e_auth.error_code))
 			if e_auth.error_code == 401:
@@ -288,7 +288,7 @@ class initial_accounts:
 	
 	def __init__(self,accounts_file=None):
 		if accounts_file is None:
-			accounts_file = 'initial_accounts.txt' # Default account file
+			accounts_file = 'initial_accounts.json' # Default account file
 		self.accounts_file = accounts_file
 		self.accounts_dic = {}
 		self.load()
