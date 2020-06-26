@@ -32,25 +32,26 @@ def process_hop(graph_handle, node_list):
     # empty_tweets_users = []
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
+    all_hashtags = []
 
     # Display progress bar if needed
     disable_tqdm = logger.root.level > logging.INFO
 
     for node in tqdm(node_list, disable=disable_tqdm):
         # Collect neighbors for the next hop
-        node_df, edges_df = graph_handle.get_neighbors(node)
-        node_df, edges_df = graph_handle.filter(node_df, edges_df)
-        if not node_df.empty:  # list of node properties and filter edges
-            total_nodes_df = total_nodes_df.append(node_df)
-            if not edges_df.empty:  # list of edges and their properties
-                total_edges_df = total_edges_df.append(edges_df)
-                neighbors_dic = graph_handle.neighbors_with_weights(edges_df)
-                new_node_dic = combine_dicts(new_node_dic, neighbors_dic)
+        node_info, edges_df = graph_handle.get_neighbors(node)
+        node_info, edges_df = graph_handle.filter(node_info, edges_df)
+
+        total_nodes_df.append(node_info['tweets'])
+        all_hashtags.append(node_info['user_hashtags'])
+        total_edges_df = total_edges_df.append(edges_df)
+        neighbors_dic = graph_handle.neighbors_with_weights(edges_df)
+        new_node_dic = combine_dicts(new_node_dic, neighbors_dic)
 
     total_edges_df.reset_index(drop=True, inplace=True)
     total_nodes_df.reset_index(drop=True, inplace=True)
 
-    return new_node_dic, total_edges_df, total_nodes_df
+    return new_node_dic, total_edges_df, total_nodes_df, all_hashtags
 
 
 def random_subset(node_dic, mode, random_subset_size=None):
@@ -105,6 +106,7 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
     new_node_dic = {node: 1 for node in username_list}
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
+    all_hashtags = []
     for depth in range(exploration_depth):
         logger.debug('')
         logger.debug('******* Processing users at {}-hop distance *******'.format(depth))
@@ -125,16 +127,17 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
         else:
             raise Exception('Unknown spread type, use spread_type="sharp" or "broad".')
 
-        new_node_dic, edges_df, nodes_df = process_hop(graph_handle, new_node_list)
+        new_node_dic, edges_df, nodes_df, hop_hashtags = process_hop(graph_handle, new_node_list)
 
         nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes
         total_edges_df = total_edges_df.append(edges_df)
         total_nodes_df = total_nodes_df.append(nodes_df)
+        all_hashtags.append(hop_hashtags)
 
     total_edges_df.reset_index(drop=True, inplace=True)
     total_nodes_df.reset_index(drop=True, inplace=True)
     total_node_list = list(total_node_dic.keys())  # set of unique nodes
-    return total_node_list, total_nodes_df, total_edges_df
+    return total_node_list, total_nodes_df, total_edges_df, all_hashtags
 
 
 def save_data(nodes_df, edges_df, data_path):

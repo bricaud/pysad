@@ -7,6 +7,7 @@ from twython import TwythonError, TwythonRateLimitError, TwythonAuthError  # to 
 
 from tqdm import tqdm
 
+
 class twitter_network:
 
     def __init__(self, credential_file):
@@ -24,14 +25,14 @@ class twitter_network:
         if not isinstance(user, str):
             return pd.DataFrame(), pd.DataFrame()
         tweets_dic, tweets_meta = self.get_user_tweets(user)
-        edges_df, node_df = self.edges_nodes_from_user(tweets_meta)
-        return node_df, edges_df
+        edges_df, node_info = self.edges_nodes_from_user(tweets_meta)
+        return node_info, edges_df
 
-    def filter(self, node_df, edges_df):
+    def filter(self, node_info, edges_df):
         # filter edges according to node properties
         # filter according to edges properties
         edges_df = self.filter_edges(edges_df)
-        return node_df, edges_df
+        return node_info, edges_df
 
     def filter_edges(self, edges_df):
         # filter edges according to their properties
@@ -108,31 +109,43 @@ class twitter_network:
         tweet_dic['text'] = full_text
         return tweet_dic
 
+    def filter_old_tweets(self, tweets):
+        max_day_old = self.rules['max_day_old']
+        if not max_day_old:
+            return tweets
+
+        days_limit = datetime.now() - timedelta(days=max_day_old)
+        tweets_filt = filter(lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S +0000 %Y') >= days_limit,
+                             tweets)
+        return list(tweets_filt)
+
     def get_user_tweets(self, username):
         # Collect tweets from a username
-        max_day_old = self.rules['max_day_old']
+
         count = self.rules['max_tweets_per_user']
 
         # Test if ok
         try:
             user_tweets_raw = self.twitter_handle.get_user_timeline(screen_name=username,
-                                                                count=count, include_rts=True,
-                                                                tweet_mode='extended', exclude_replies=False)
+                                                                    count=count, include_rts=True,
+                                                                    tweet_mode='extended', exclude_replies=False)
+            # remove old tweets
+            user_tweets_filt = self.filter_old_tweets(user_tweets_raw)
             # make a dictionary
-            user_tweets = {x['id']: x for x in user_tweets_raw}
+            user_tweets = {x['id']: x for x in user_tweets_filt}
             tweets_metadata = \
                 map(lambda x: (x[0], {'user': x[1]['user']['screen_name'],
-                    'mentions': list(map(lambda y: y['screen_name'], x[1]['entities']['user_mentions'])),
-                    'hashtags': list(map(lambda y: y['text'], x[1]['entities']['hashtags'])),
-                    'retweet_count': x[1]['retweet_count'],
-                    'favorite_count': x[1]['favorite_count']}),
-                     user_tweets.items())
+                                      'mentions': list(map(lambda y: y['screen_name'], x[1]['entities']['user_mentions'])),
+                                      'hashtags': list(map(lambda y: y['text'], x[1]['entities']['hashtags'])),
+                                      'retweet_count': x[1]['retweet_count'],
+                                      'favorite_count': x[1]['favorite_count'], 'created_at': x[1]['created_at']}),
+                    user_tweets.items())
             return user_tweets, dict(tweets_metadata)
         except TwythonAuthError as e_auth:
             print('Cannot access to twitter API, authentification error. {}'.format(e_auth.error_code))
             if e_auth.error_code == 401:
                 print('Unauthorized access to user {}. Skipping.'.format(username))
-                return {}
+                return {}, {}
             raise
         except TwythonRateLimitError as e_lim:
             print('API rate limit reached')
@@ -144,13 +157,13 @@ class twitter_network:
             time.sleep(wait_time + 1)
         except TwythonError as e:
             print('Twitter API returned error {} for user {}.'.format(e.error_code, username))
-            return {}
+            return {}, {}
 
     def edges_nodes_from_user(self, tweets_meta):
         # Make an edge and node property dataframes
         edges_df = self.get_edges(tweets_meta)
-        user_info_df = self.get_nodes_properties(tweets_meta)
-        return edges_df, user_info_df
+        user_info = self.get_nodes_properties(tweets_meta)
+        return edges_df, user_info
 
     def get_edges(self, tweets_meta):
         # Create the user -> mention table with their properties fom the list of tweets of a user
@@ -163,8 +176,8 @@ class twitter_network:
 
         # group by mentions and keep list of tweets for each mention
         tmp = filtered_meta_df.groupby(['user', 'mentions']).apply(lambda x: (x.index.tolist(), len(x.index)))
-        edge_df = pd.DataFrame(tmp.tolist(), index=tmp.index)\
-            .rename(columns={0: 'tweet_id', 1: 'weight'})\
+        edge_df = pd.DataFrame(tmp.tolist(), index=tmp.index) \
+            .rename(columns={0: 'tweet_id', 1: 'weight'}) \
             .sort_values('weight', ascending=False)
 
         return edge_df
@@ -172,15 +185,17 @@ class twitter_network:
     def get_nodes_properties(self, tweet_meta):
         nb_popular_tweets = 5
         # global properties
-        meta_df = pd.DataFrame.from_dict(tweet_meta, orient='index')\
+        meta_df = pd.DataFrame.from_dict(tweet_meta, orient='index') \
             .sort_values('retweet_count', ascending=False)
         # hashtags statistics
         ht_df = meta_df.explode('hashtags').dropna()
         htgb = ht_df.groupby(['hashtags']).size()
-        all_hashtags = pd.DataFrame(htgb).rename(columns={0: 'count'}).sort_values('count', ascending=False)
-
+        user_hashtags = pd.DataFrame(htgb).rename(columns={0: 'count'})\
+            .sort_values('count', ascending=False)\
+            .to_dict()
+        user_hashtags['user'] = meta_df['user'].iloc[0]
         # Get most popular tweets of user
-        return {'tweets': meta_df.head(nb_popular_tweets), 'all_hastags': all_hashtags}
+        return {'tweets': meta_df.head(nb_popular_tweets), 'user_hashtags': user_hashtags}
 
 
 #####################################################
