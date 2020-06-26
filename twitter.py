@@ -19,13 +19,13 @@ class twitter_network:
 
         # Instantiate an object
         self.twitter_handle = Twython(creds['CONSUMER_KEY'], creds['CONSUMER_SECRET'])
-        self.rules = {'min_mentions': 0, 'max_day_old': None, 'max_tweets_per_user': 200}
+        self.rules = {'min_mentions': 0, 'max_day_old': None, 'max_tweets_per_user': 200, 'nb_popular_tweets': 10}
 
     def get_neighbors(self, user):
         if not isinstance(user, str):
             return pd.DataFrame(), pd.DataFrame()
         tweets_dic, tweets_meta = self.get_user_tweets(user)
-        edges_df, node_info = self.edges_nodes_from_user(tweets_meta)
+        edges_df, node_info = self.edges_nodes_from_user(tweets_meta, tweets_dic)
         return node_info, edges_df
 
     def filter(self, node_info, edges_df):
@@ -159,10 +159,10 @@ class twitter_network:
             print('Twitter API returned error {} for user {}.'.format(e.error_code, username))
             return {}, {}
 
-    def edges_nodes_from_user(self, tweets_meta):
+    def edges_nodes_from_user(self, tweets_meta, tweets_dic):
         # Make an edge and node property dataframes
         edges_df = self.get_edges(tweets_meta)
-        user_info = self.get_nodes_properties(tweets_meta)
+        user_info = self.get_nodes_properties(tweets_meta, tweets_dic)
         return edges_df, user_info
 
     def get_edges(self, tweets_meta):
@@ -182,8 +182,8 @@ class twitter_network:
 
         return edge_df
 
-    def get_nodes_properties(self, tweet_meta):
-        nb_popular_tweets = 5
+    def get_nodes_properties(self, tweet_meta, tweets_dic):
+        nb_popular_tweets = self.rules['nb_popular_tweets']
         # global properties
         meta_df = pd.DataFrame.from_dict(tweet_meta, orient='index') \
             .sort_values('retweet_count', ascending=False)
@@ -194,8 +194,10 @@ class twitter_network:
             .sort_values('count', ascending=False)\
             .to_dict()
         user_hashtags['user'] = meta_df['user'].iloc[0]
+        tweets_meta_kept = meta_df.head(nb_popular_tweets)
+        tweets_kept = {k: tweets_dic[k] for k in tweets_meta_kept.index.to_list()}
         # Get most popular tweets of user
-        return {'tweets': meta_df.head(nb_popular_tweets), 'user_hashtags': user_hashtags}
+        return {'user_tweets': tweets_kept, 'tweets_meta': tweets_meta_kept, 'user_hashtags': user_hashtags}
 
 
 #####################################################

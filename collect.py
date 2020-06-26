@@ -33,6 +33,7 @@ def process_hop(graph_handle, node_list):
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
     all_hashtags = []
+    all_tweets = {}
 
     # Display progress bar if needed
     disable_tqdm = logger.root.level > logging.INFO
@@ -42,8 +43,9 @@ def process_hop(graph_handle, node_list):
         node_info, edges_df = graph_handle.get_neighbors(node)
         node_info, edges_df = graph_handle.filter(node_info, edges_df)
 
-        total_nodes_df.append(node_info['tweets'])
+        total_nodes_df = total_nodes_df.append(node_info['tweets_meta'])
         all_hashtags.append(node_info['user_hashtags'])
+        all_tweets.update(node_info['user_tweets'])
         total_edges_df = total_edges_df.append(edges_df)
         neighbors_dic = graph_handle.neighbors_with_weights(edges_df)
         new_node_dic = combine_dicts(new_node_dic, neighbors_dic)
@@ -51,7 +53,7 @@ def process_hop(graph_handle, node_list):
     total_edges_df.reset_index(drop=True, inplace=True)
     total_nodes_df.reset_index(drop=True, inplace=True)
 
-    return new_node_dic, total_edges_df, total_nodes_df, all_hashtags
+    return new_node_dic, total_edges_df, total_nodes_df, all_hashtags, all_tweets
 
 
 def random_subset(node_dic, mode, random_subset_size=None):
@@ -107,6 +109,8 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
     all_hashtags = []
+    all_tweets = {}
+
     for depth in range(exploration_depth):
         logger.debug('')
         logger.debug('******* Processing users at {}-hop distance *******'.format(depth))
@@ -127,17 +131,18 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
         else:
             raise Exception('Unknown spread type, use spread_type="sharp" or "broad".')
 
-        new_node_dic, edges_df, nodes_df, hop_hashtags = process_hop(graph_handle, new_node_list)
+        new_node_dic, edges_df, nodes_df, hop_hashtags, hop_tweets = process_hop(graph_handle, new_node_list)
 
         nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes
         total_edges_df = total_edges_df.append(edges_df)
         total_nodes_df = total_nodes_df.append(nodes_df)
         all_hashtags.append(hop_hashtags)
+        all_tweets.update(hop_tweets)
 
     total_edges_df.reset_index(drop=True, inplace=True)
     total_nodes_df.reset_index(drop=True, inplace=True)
     total_node_list = list(total_node_dic.keys())  # set of unique nodes
-    return total_node_list, total_nodes_df, total_edges_df, all_hashtags
+    return total_node_list, total_nodes_df, total_edges_df, all_hashtags, all_tweets
 
 
 def save_data(nodes_df, edges_df, data_path):
