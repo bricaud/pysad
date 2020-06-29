@@ -1,0 +1,18 @@
+{
+	"credentials_file" : "twitter_credentials.json",
+	"pysad_path" : "./pysad/",
+	"data_path" : "../tweetdata/",
+	"results_path" : "../resultsdata/",
+	"accounts_file" : "initial_accounts.json",
+	"rules" : {
+		"min_mentions": 0,
+		"max_day_old": 20,
+		"exploration_depth": 2,
+		"mode": "constant",
+		"random_subset_size": 200,
+		"spread_type": "sharp",
+		"max_tweets_per_user": 200,
+		"nb_popular_tweets": 20,
+		"users_to_remove": [ 'threader_app', 'threadreaderapp' ]
+	}
+}

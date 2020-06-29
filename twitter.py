@@ -19,7 +19,10 @@ class twitter_network:
 
         # Instantiate an object
         self.twitter_handle = Twython(creds['CONSUMER_KEY'], creds['CONSUMER_SECRET'])
-        self.rules = {'min_mentions': 0, 'max_day_old': None, 'max_tweets_per_user': 200, 'nb_popular_tweets': 10}
+        self.rules = {
+            'min_mentions': 0, 'max_day_old': None, 'max_tweets_per_user': 200, 'nb_popular_tweets': 10,
+            'users_to_remove': []
+        }
 
     def get_neighbors(self, user):
         if not isinstance(user, str):
@@ -169,7 +172,7 @@ class twitter_network:
         # Create the user -> mention table with their properties fom the list of tweets of a user
         meta_df = pd.DataFrame.from_dict(tweets_meta, orient='index').explode('mentions').dropna()
         # Some bots to be removed from the collection
-        userstoremove = ['threader_app', 'threadreaderapp']
+        userstoremove = self.rules['users_to_remove']
 
         filtered_meta_df = meta_df[~meta_df['mentions'].isin(userstoremove) &
                                    ~meta_df['mentions'].isin(meta_df['user'])]
