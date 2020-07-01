@@ -6,32 +6,8 @@ import json
 import glob
 import pysad.collect
 import logging
-
-# logging.basicConfig(level=logging.ERROR)
-# Creating an object
-logger = logging.getLogger()
-from tqdm import tqdm
-#############################################################
-# Functions for the graph of users
-#############################################################
-
-# def load_collected_data(data_path, graph_object='edge'):
-#     data_df = pd.DataFrame()
-#     if graph_object == 'node':
-#         filestring = '_userinfo'
-#     elif graph_object == 'edge':
-#         filestring = '_mentions'
-#     else:
-#         print('Type unknown. graph_type only accept "node" or "edge".')
-#         raise
-			
-#     for filename in tqdm(glob.glob(data_path + '*' + filestring + '*' + '.json')):
-#         new_data_df = pd.read_json(filename)
-#         #print('{} with {} tweets.'.format(filename,len(new_data_df)))
-#         data_df = data_df.append(new_data_df)
-#     data_df.reset_index(drop=True, inplace=True)
-#     return data_df
-
+from datetime import datetime
+from collections import Counter
 
 def converttojson(edge_df):
 	""" Check if column type is list or dict and convert it to json
@@ -42,13 +18,10 @@ def converttojson(edge_df):
 		first_row_element = edge_df.iloc[0, idx]
 		if isinstance(first_row_element, list) or isinstance(first_row_element, dict):
 			edge_df_str[col] = edge_df[col].apply(json.dumps)
-			print('Field "{}" of class {} converted to json string'.format(col, type(first_row_element)))
-		#else:
+			logging.debug('Field "{}" of class {} converted to json string'.format(col, type(first_row_element)))
+		# else:
 		#	print(col,type(edge_df[col][0]))
 	return edge_df_str
-
-#def aggregate_edges(edge_df):
-	#TODO
 
 
 def graph_from_edgeslist(edge_df, min_weight=0):
@@ -57,7 +30,7 @@ def graph_from_edgeslist(edge_df, min_weight=0):
 	edge_df = edge_df.rename_axis(['source', 'target']).reset_index()
 	G = nx.from_pandas_edgelist(edge_df[edge_df['weight'] >= min_weight],
 								source='source', target='target', create_using=nx.DiGraph)
-	logger.info('Nb of nodes: {}'.format(G.number_of_nodes()))
+	logging.info('Nb of nodes: {}'.format(G.number_of_nodes()))
 	return G
 
 # def shape_attributes(G,data_dic):
@@ -74,6 +47,7 @@ def graph_from_edgeslist(edge_df, min_weight=0):
 # 		nx.set_node_attributes(G,nodeprop,name=propname)
 # 	return prop_list
 
+
 def attributes_tojson(data_dic):
 	for propname, propdic in data_dic.items():
 		for key, value in propdic.items():
@@ -83,15 +57,19 @@ def attributes_tojson(data_dic):
 				data_dic[propname][key] = value
 	return data_dic
 
-def add_node_attributes(G, node_df):
+
+def add_node_attributes(graph, node_df, hashtags):
 	node_dic = node_df.to_dict()
+
 	node_dic = attributes_tojson(node_dic)
 	for propname, propdic in node_dic.items():
-		nx.set_node_attributes(G, propdic, name=propname)
-	return G
+		nx.set_node_attributes(graph, propdic, name=propname)
+	nx.set_node_attributes(graph, hashtags, name='all_hashtags')
+	return graph
+
 
 def add_edges_attributes(G, edges_df):
-	edge_dic = edges_df.to_dict()
+	edge_dic = edges_df.drop(columns=['tweet_id']).to_dict()
 	#edge_dic = attributes_tojson(edge_dic)
 	for propname, propdic in edge_dic.items():
 		nx.set_edge_attributes(G, propdic, name=propname)
@@ -102,37 +80,37 @@ def reduce_graph(G, degree_min):
 	# Drop node with small degree
 	remove = [node for node, degree in dict(G.degree()).items() if degree < degree_min]
 	G.remove_nodes_from(remove)
-	print('Nb of nodes after removing nodes with degree strictly smaller than {}: {}'.format(degree_min, G.number_of_nodes()))
+	logging.info('Nb of nodes after removing nodes with degree strictly smaller than {}: {}'.format(degree_min, G.number_of_nodes()))
 	isolates = list(nx.isolates(G))
 	G.remove_nodes_from(isolates)
-	print('removed {} isolated nodes.'.format(len(isolates)))
-	if G.is_directed():
-		print('Warning: the graph is directed.')
+	logging.info('removed {} isolated nodes.'.format(len(isolates)))
 	return G
+
 
 def handle_spikyball_neighbors(G, graph_handle, remove=True):
 	# Complete the info of the nodes not collected
 	sp_neighbors = [node for node, data in G.nodes(data=True) if 'spikyball_hop' not in data]
-	print('Number of neighbors of the spiky ball:', len(sp_neighbors))
+	logging.info('Number of neighbors of the spiky ball: {}'.format(len(sp_neighbors)))
 
 	# 2 options: 1) remove the neighbors or 2) rerun the collection to collect the missing node info
 	if remove:
 		# Option 1:
-		print('Removing spiky ball neighbors...')
+		logging.info('Removing spiky ball neighbors...')
 		G.remove_nodes_from(sp_neighbors)
-		print('Number of nodes after removal:',G.number_of_nodes())
+		logging.info('Number of nodes after removal: {}'.format(G.number_of_nodes()))
 	else:
+		# TODO this needs checking
 		# Option 2: collect the missing node data
-		print('Collecting info for neighbors...')
-		new_nodes_founds, edges_df, nodes_df = pysad.collect.process_hop(graph_handle, sp_neighbors)
-		G = add_node_attributes(G,nodes_df)
-		sp_nodes_dic = {node:-1 for node in sp_neighbors}
-		nx.set_node_attributes(G,sp_nodes_dic,name='spikyball_hop')
-		print('Node info added to the graph.')
+		logging.info('Collecting info for neighbors...')
+		new_nodes_founds, edges_df, nodes_df, hashtags, tweets = pysad.collect.process_hop(graph_handle, sp_neighbors)
+		G = add_node_attributes(G, nodes_df)
+		sp_nodes_dic = {node: -1 for node in sp_neighbors}
+		nx.set_node_attributes(G, sp_nodes_dic, name='spikyball_hop')
+		logging.info('Node info added to the graph.')
 	# Check integrity
 	for node, data in G.nodes(data=True):
 		if 'spikyball_hop' not in data:
-			print('Missing information for node',node)
+			logging.error('Missing information for node ', node)
 	return G
 
 
@@ -144,9 +122,9 @@ def detect_communities(G):
 		Gu = G
 	partition = community.best_partition(Gu, weight='weight')
 	nx.set_node_attributes(G, partition, name='community')
-	print('Communities saved on the graph as node attributes.')
+	logging.debug('Communities saved on the graph as node attributes.')
 	nb_partitions = max(partition.values()) + 1
-	print('Nb of partitions:', nb_partitions)
+	logging.info('Nb of partitions: {}'.format(nb_partitions))
 	# Create a dictionary of subgraphs, one per community
 	community_dic = {}
 	for idx in range(nb_partitions):
@@ -164,7 +142,7 @@ def remove_small_communities(G, community_dic, min_size):
 		if graph.number_of_nodes() <= min_size:
 			G.remove_nodes_from(graph.nodes())
 			nb_removed += 1
-	print('removed {} community(ies) smaller than {} nodes.'.format(nb_removed, min_size))
+	logging.info('removed {} community(ies) smaller than {} nodes.'.format(nb_removed, min_size))
 	return G
 
 #############################################################
@@ -199,9 +177,8 @@ def cluster_connectivity(G, weight='weight'):
 	return c_connectivity
 
 
-
 #############################################################
-## Functions for Community data (comparing clusters)
+#  Functions for Community data (comparing clusters)
 #############################################################
 
 def community_data(G):
@@ -256,6 +233,7 @@ def compute_meantime(date_list):
 	meand = np.mean(second_list)
 	stdd = np.std(second_list)
 	return datetime.fromtimestamp(meand), timedelta(seconds=stdd)
+
 
 def communities_date_hashtags(dates_dic, tags_dic):
 	# Create a table with time and popular hashtags for each community

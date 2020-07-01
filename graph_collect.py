@@ -3,6 +3,7 @@ import json
 import twitter
 import collect
 import graph
+import networkx as nx
 import logging
 import itertools
 from datetime import datetime
@@ -30,9 +31,19 @@ def get_date_range(tweets):
     return tweets[kmin]['created_at'], tweets[kmax]['created_at']
 
 
+def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
+    g = graph.graph_from_edgeslist(edges_df, min_weight=cfg['min_weight'])
+    g = graph.add_edges_attributes(g, edges_df)
+    g = graph.add_node_attributes(g, twitter.reshape_node_data(nodes_df), hashtags)
+    g = graph.reduce_graph(g, cfg['min_degree'])
+    g = graph.handle_spikyball_neighbors(g, graph_handle)  # ,remove=False)
+    return g
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config', help='configuration (json) file path')
+    parser.add_argument('output', help='destination (gexf) file path')
     parser.add_argument('-v', '--verbosity', help='increase output verbosity',
                         action='count')
     # read parameters
@@ -60,8 +71,19 @@ def main():
     logger.info('Total number of users mentioned: {}'.format(len(user_list)))
     start_date, end_date = get_date_range(tweets)
     logger.info('Range of tweets date from {} to {}'.format(start_date, end_date))
-    #nodes_df = twitter.reshape_node_data(nodes_df)
-    g = graph.graph_from_edgeslist(edges_df)
+
+    # create graph from edge list
+    g = create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg['graph'])
+    g.graph['end_date'] = end_date
+    g.graph['start_date'] = start_date
+
+    # perform community detection
+    g, clusters = graph.detect_communities(g)
+    g.nb_communities = len(clusters)
+    g = graph.remove_small_communities(g, clusters, min_size=cfg['graph']['min_community_size'])
+
+    # save graph
+    nx.write_gexf(g, args.output)
 
 
 if __name__ == '__main__':

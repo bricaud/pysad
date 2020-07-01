@@ -20,7 +20,7 @@ def process_hop(graph_handle, node_list):
     # empty_tweets_users = []
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
-    all_hashtags = []
+    all_hashtags = {}
     all_tweets = {}
 
     # Display progress bar if needed
@@ -32,7 +32,7 @@ def process_hop(graph_handle, node_list):
         node_info, edges_df = graph_handle.filter(node_info, edges_df)
 
         total_nodes_df = total_nodes_df.append(node_info['tweets_meta'])
-        all_hashtags.append(node_info['user_hashtags'])
+        all_hashtags.update(node_info['user_hashtags'])
         all_tweets.update(node_info['user_tweets'])
         total_edges_df = total_edges_df.append(edges_df)
         neighbors_dic = graph_handle.neighbors_with_weights(edges_df)
@@ -93,7 +93,7 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
     new_node_dic = {node: 1 for node in username_list}
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
-    all_hashtags = []
+    all_hashtags = {}
     all_tweets = {}
 
     for depth in range(exploration_depth):
@@ -122,7 +122,7 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
         nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes
         total_edges_df = total_edges_df.append(edges_df)
         total_nodes_df = total_nodes_df.append(nodes_df)
-        all_hashtags.append(hop_hashtags)
+        all_hashtags.update(hop_hashtags)
         all_tweets.update(hop_tweets)
 
     total_edges_df = total_edges_df.sort_values('weight', ascending=False)

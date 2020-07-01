@@ -58,7 +58,7 @@ class twitter_network:
     ###############################################################
     # Functions for extracting tweet info from the twitter API
     ###############################################################
-
+    # TODO: REMOVE
     def fill_retweet_info(self, tweet_dic, raw_retweet):
         # handle the particular structure of a retweet to get the full text retweeted
         tweet_dic['retweeted_from'] = raw_retweet['user']['screen_name']
@@ -73,6 +73,7 @@ class twitter_network:
             return url_dic['unwound']['url']
         return url_dic['expanded_url']
 
+    # TODO: REMOVE
     def extract_tweet_infos(self, raw_tweet):
         # make a dic from the json raw tweet with the needed information
 
@@ -140,6 +141,7 @@ class twitter_network:
             user_tweets = {x['id']: x for x in user_tweets_filt}
             tweets_metadata = \
                 map(lambda x: (x[0], {'user': x[1]['user']['screen_name'],
+                                      'name': x[1]['user']['name'],
                                       'user_details': x[1]['user']['description'],
                                       'mentions': list(map(lambda y: y['screen_name'], x[1]['entities']['user_mentions'])),
                                       'hashtags': list(map(lambda y: y['text'], x[1]['entities']['hashtags'])),
@@ -201,13 +203,13 @@ class twitter_network:
         ht_df = meta_df.explode('hashtags').dropna()
         htgb = ht_df.groupby(['hashtags']).size()
         user_hashtags = pd.DataFrame(htgb).rename(columns={0: 'count'})\
-            .sort_values('count', ascending=False)\
-            .to_dict()
-        user_hashtags['user'] = meta_df['user'].iloc[0]
+            .sort_values('count', ascending=False).to_dict()
+        user_name = meta_df['user'].iloc[0]
         tweets_meta_kept = meta_df.head(nb_popular_tweets)
         tweets_kept = {k: tweets_dic[k] for k in tweets_meta_kept.index.to_list()}
         # Get most popular tweets of user
-        return {'user_tweets': tweets_kept, 'tweets_meta': tweets_meta_kept, 'user_hashtags': user_hashtags}
+        return {'user_tweets': tweets_kept, 'tweets_meta': tweets_meta_kept,
+                'user_hashtags': {user_name: user_hashtags['count']}}
 
 
 #####################################################
@@ -216,12 +218,13 @@ class twitter_network:
 
 
 def reshape_node_data(node_df):
-    node_df = node_df[['user', 'name', 'user_details', 'all_hashtags', 'spikyball_hop']]
+    node_df = node_df[['user', 'name', 'user_details', 'spikyball_hop']]
     node_df = node_df.drop_duplicates(subset='user')
     node_df.set_index('user', inplace=True)
     return node_df
 
 
+# TODO: REMOVE
 def reshape_edge_data(edge_df, min_weight):
     edge_grouped = edge_df.groupby(['user', 'mention'])
     edge_list = []
