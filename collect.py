@@ -1,21 +1,9 @@
 import pandas as pd
-import random
 from tqdm import tqdm
 import numpy as np
 import operator
 import os
-
 import logging
-
-# logging.basicConfig(level=logging.ERROR)
-# Creating an object
-logger = logging.getLogger()
-
-# Setting the threshold of logger to DEBUG
-logger.setLevel(logging.ERROR)
-
-
-# logger.setLevel(logging.DEBUG)
 
 
 def combine_dicts(a, b, op=operator.add):
@@ -36,8 +24,8 @@ def process_hop(graph_handle, node_list):
     all_tweets = {}
 
     # Display progress bar if needed
-    disable_tqdm = logger.root.level > logging.INFO
-
+    disable_tqdm = logging.root.level >= logging.INFO
+    logging.info('processing next hop with {} nodes'.format(len(node_list)))
     for node in tqdm(node_list, disable=disable_tqdm):
         # Collect neighbors for the next hop
         node_info, edges_df = graph_handle.get_neighbors(node)
@@ -49,9 +37,6 @@ def process_hop(graph_handle, node_list):
         total_edges_df = total_edges_df.append(edges_df)
         neighbors_dic = graph_handle.neighbors_with_weights(edges_df)
         new_node_dic = combine_dicts(new_node_dic, neighbors_dic)
-
-    total_edges_df.reset_index(drop=True, inplace=True)
-    total_nodes_df.reset_index(drop=True, inplace=True)
 
     return new_node_dic, total_edges_df, total_nodes_df, all_hashtags, all_tweets
 
@@ -66,8 +51,8 @@ def random_subset(node_dic, mode, random_subset_size=None):
     if mode == 'constant':
         if isinstance(random_subset_size, int) and (nb_nodes > random_subset_size):
             # Only explore a random subset of users
-            logger.debug('---')
-            logger.debug(
+            logging.debug('---')
+            logging.debug(
                 'Too many users mentioned ({}). Keeping a random subset of {}.'.format(nb_nodes, random_subset_size))
             r_node_list = np.random.choice(node_list, random_subset_size, p=node_weights, replace=False)
         else:
@@ -88,19 +73,19 @@ def random_subset(node_dic, mode, random_subset_size=None):
 
 
 def spiky_ball(username_list, graph_handle, exploration_depth=4,
-               mode='percent', random_subset_size=None, spread_type='sharp', logger_level='error'):
+               mode='percent', random_subset_size=None, spread_type='sharp'):
     """ Collect the tweets of the users and their mentions
         make an edge list user -> mention
         and save each user edge list to a file
     """
+
     if graph_handle.rules:
-        print('---')
-        print('Parameters:')
+        logging.debug('---')
+        logging.debug('Parameters:')
         for key, value in graph_handle.rules.items():
-            print(key, value)
-        print('---')
-    if logger_level == 'verbose':  # display info
-        logger.setLevel(logging.DEBUG)
+            logging.debug(key, value)
+        logging.debug('---')
+
     total_username_list = []
     # total_username_list += username_list
     new_username_list = username_list.copy()
@@ -112,8 +97,8 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
     all_tweets = {}
 
     for depth in range(exploration_depth):
-        logger.debug('')
-        logger.debug('******* Processing users at {}-hop distance *******'.format(depth))
+        logging.debug('')
+        logging.debug('******* Processing users at {}-hop distance *******'.format(depth))
 
         if spread_type == 'sharp':
             if not new_node_dic:
@@ -132,15 +117,15 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
             raise Exception('Unknown spread type, use spread_type="sharp" or "broad".')
 
         new_node_dic, edges_df, nodes_df, hop_hashtags, hop_tweets = process_hop(graph_handle, new_node_list)
-
+        if nodes_df.empty:
+            continue
         nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes
         total_edges_df = total_edges_df.append(edges_df)
         total_nodes_df = total_nodes_df.append(nodes_df)
         all_hashtags.append(hop_hashtags)
         all_tweets.update(hop_tweets)
 
-    total_edges_df.reset_index(drop=True, inplace=True)
-    total_nodes_df.reset_index(drop=True, inplace=True)
+    total_edges_df = total_edges_df.sort_values('weight', ascending=False)
     total_node_list = list(total_node_dic.keys())  # set of unique nodes
     return total_node_list, total_nodes_df, total_edges_df, all_hashtags, all_tweets
 
@@ -149,9 +134,9 @@ def save_data(nodes_df, edges_df, data_path):
     # Save to json file
     edgefilename = os.path.join(data_path, 'edges_data.json')
     nodefilename = os.path.join(data_path, 'nodes_data.json')
-    print('Writing', edgefilename)
+    logging.debug('Writing', edgefilename)
     edges_df.to_json(edgefilename)
-    print('Writing', nodefilename)
+    logging.debug('Writing', nodefilename)
     nodes_df.to_json(nodefilename)
     return None
 
@@ -159,8 +144,8 @@ def save_data(nodes_df, edges_df, data_path):
 def load_data(data_path):
     nodesfilename = os.path.join(data_path, 'nodes_data.json')
     edgesfilename = os.path.join(data_path, 'edges_data.json')
-    print('Loading', nodesfilename)
+    logging.debug('Loading', nodesfilename)
     nodes_df = pd.read_json(nodesfilename)
-    print('Loading', edgesfilename)
+    logging.debug('Loading', edgesfilename)
     edges_df = pd.read_json(edgesfilename)
     return nodes_df, edges_df

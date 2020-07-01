@@ -5,7 +5,11 @@ import numpy as np
 import json
 import glob
 import pysad.collect
+import logging
 
+# logging.basicConfig(level=logging.ERROR)
+# Creating an object
+logger = logging.getLogger()
 from tqdm import tqdm
 #############################################################
 # Functions for the graph of users
@@ -47,13 +51,13 @@ def converttojson(edge_df):
 	#TODO
 
 
-
-def graph_from_edgeslist(edge_df, min_weight):
-	print('Creating the graph from the edge list')
+def graph_from_edgeslist(edge_df, min_weight=0):
+	logging.debug('Creating the graph from the edge list')
 	# The indices in the dataframe are source and target for the edges
 	edge_df = edge_df.rename_axis(['source', 'target']).reset_index()
-	G = nx.from_pandas_edgelist(edge_df, source='source', target='target', create_using=nx.DiGraph)
-	print('Nb of nodes:', G.number_of_nodes())
+	G = nx.from_pandas_edgelist(edge_df[edge_df['weight'] >= min_weight],
+								source='source', target='target', create_using=nx.DiGraph)
+	logger.info('Nb of nodes: {}'.format(G.number_of_nodes()))
 	return G
 
 # def shape_attributes(G,data_dic):

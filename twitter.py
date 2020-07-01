@@ -4,7 +4,7 @@ import json
 import pandas as pd
 from datetime import datetime, timedelta, time
 from twython import TwythonError, TwythonRateLimitError, TwythonAuthError  # to check the returned API errors
-
+import logging
 from tqdm import tqdm
 
 
@@ -46,6 +46,8 @@ class twitter_network:
     def neighbors_list(self, edges_df):
         # print(edges_df)
         # print(edges_df['mention'].unique())
+        if edges_df.empty:
+            return edges_df
         users_connected = edges_df.index.droplevel(0).tolist()
         return users_connected
 
@@ -138,6 +140,7 @@ class twitter_network:
             user_tweets = {x['id']: x for x in user_tweets_filt}
             tweets_metadata = \
                 map(lambda x: (x[0], {'user': x[1]['user']['screen_name'],
+                                      'user_details': x[1]['user']['description'],
                                       'mentions': list(map(lambda y: y['screen_name'], x[1]['entities']['user_mentions'])),
                                       'hashtags': list(map(lambda y: y['text'], x[1]['entities']['hashtags'])),
                                       'retweet_count': x[1]['retweet_count'],
@@ -145,21 +148,22 @@ class twitter_network:
                     user_tweets.items())
             return user_tweets, dict(tweets_metadata)
         except TwythonAuthError as e_auth:
-            print('Cannot access to twitter API, authentification error. {}'.format(e_auth.error_code))
             if e_auth.error_code == 401:
-                print('Unauthorized access to user {}. Skipping.'.format(username))
+                logging.warning('Unauthorized access to user {}. Skipping.'.format(username))
                 return {}, {}
-            raise
+            else:
+                logging.error('Cannot access to twitter API, authentification error. {}'.format(e_auth.error_code))
+                raise
         except TwythonRateLimitError as e_lim:
-            print('API rate limit reached')
-            print(e_lim)
+            logging.warning('API rate limit reached')
+            logging.warning(e_lim)
             wait_time = int(e_lim.retry_after) - time.time()
-            print('Retry after {} seconds.'.format(wait_time))
-            print('Entering sleep mode at:', time.ctime())
-            print('Waking up at:', time.ctime(e_lim.retry_after + 1))
+            logging.warning('Retry after {} seconds.'.format(wait_time))
+            logging.warning('Entering sleep mode at:', time.ctime())
+            logging.warning('Waking up at:', time.ctime(e_lim.retry_after + 1))
             time.sleep(wait_time + 1)
         except TwythonError as e:
-            print('Twitter API returned error {} for user {}.'.format(e.error_code, username))
+            logging.error('Twitter API returned error {} for user {}.'.format(e.error_code, username))
             return {}, {}
 
     def edges_nodes_from_user(self, tweets_meta, tweets_dic):
@@ -169,6 +173,8 @@ class twitter_network:
         return edges_df, user_info
 
     def get_edges(self, tweets_meta):
+        if not tweets_meta:
+            return pd.DataFrame()
         # Create the user -> mention table with their properties fom the list of tweets of a user
         meta_df = pd.DataFrame.from_dict(tweets_meta, orient='index').explode('mentions').dropna()
         # Some bots to be removed from the collection
@@ -181,14 +187,15 @@ class twitter_network:
         tmp = filtered_meta_df.groupby(['user', 'mentions']).apply(lambda x: (x.index.tolist(), len(x.index)))
         edge_df = pd.DataFrame(tmp.tolist(), index=tmp.index) \
             .rename(columns={0: 'tweet_id', 1: 'weight'}) \
-            .sort_values('weight', ascending=False)
 
         return edge_df
 
-    def get_nodes_properties(self, tweet_meta, tweets_dic):
+    def get_nodes_properties(self, tweets_meta, tweets_dic):
+        if not tweets_meta:
+            return {'user_tweets': {}, 'tweets_meta': pd.DataFrame(), 'user_hashtags': {}}
         nb_popular_tweets = self.rules['nb_popular_tweets']
         # global properties
-        meta_df = pd.DataFrame.from_dict(tweet_meta, orient='index') \
+        meta_df = pd.DataFrame.from_dict(tweets_meta, orient='index') \
             .sort_values('retweet_count', ascending=False)
         # hashtags statistics
         ht_df = meta_df.explode('hashtags').dropna()
