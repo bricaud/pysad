@@ -1,9 +1,5 @@
 {
 	"credentials_file" : "twitter_credentials.json",
-	"pysad_path" : "./pysad/",
-	"data_path" : "../tweetdata/",
-	"results_path" : "../resultsdata/",
-	"accounts_file" : "initial_accounts.json",
 	"rules" : {
 		"min_mentions": 0,
 		"max_day_old": 20,

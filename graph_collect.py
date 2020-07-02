@@ -4,6 +4,7 @@ import twitter
 import collect
 import graph
 import networkx as nx
+import pandas as pd
 import logging
 import itertools
 from datetime import datetime
@@ -42,13 +43,14 @@ def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', help='configuration (json) file path')
-    parser.add_argument('output', help='destination (gexf) file path')
+    parser.add_argument('--config', nargs=1, help='configuration (json) file path')
+    parser.add_argument('--output', nargs=1, help='destination (gexf) file path')
     parser.add_argument('-v', '--verbosity', help='increase output verbosity',
                         action='count')
+    parser.add_argument('accounts', help='initial accounts (csv) file path')
     # read parameters
     args = parser.parse_args()
-    cfg = read_config_file(args.config)
+    cfg = read_config_file(args.config[0])
 
     handler = logging.StreamHandler(sys.stdout)
     if args.verbosity == 1:
@@ -59,7 +61,7 @@ def main():
 
     graph_handle = twitter.twitter_network(cfg['credentials_file'])
     # flatten dictionary
-    initial_accounts = list(itertools.chain.from_iterable(read_config_file(cfg['accounts_file']).values()))
+    initial_accounts = pd.read_csv(args.accounts).iloc[:, 0].values.tolist()
     graph_handle.rules = cfg['rules']
     user_list, nodes_df, edges_df, hashtags, tweets = collect.spiky_ball(initial_accounts,
                                                                          graph_handle,
@@ -83,7 +85,7 @@ def main():
     g = graph.remove_small_communities(g, clusters, min_size=cfg['graph']['min_community_size'])
 
     # save graph
-    nx.write_gexf(g, args.output)
+    nx.write_gexf(g, args.output[0])
 
 
 if __name__ == '__main__':

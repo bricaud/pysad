@@ -187,6 +187,8 @@ class twitter_network:
 
         # group by mentions and keep list of tweets for each mention
         tmp = filtered_meta_df.groupby(['user', 'mentions']).apply(lambda x: (x.index.tolist(), len(x.index)))
+        if tmp.empty:
+            return tmp
         edge_df = pd.DataFrame(tmp.tolist(), index=tmp.index) \
             .rename(columns={0: 'tweet_id', 1: 'weight'}) \
 
