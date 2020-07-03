@@ -24,6 +24,11 @@ def read_config_file(filename):
     return cfg
 
 
+def write_json_output(dict, filename):
+    with open(filename, 'w') as f:
+        json.dump(dict, f)
+
+
 def get_date_range(tweets):
     kmax = max(tweets.keys(),
                key=(lambda k: datetime.strptime(tweets[k]['created_at'], '%a %b %d %H:%M:%S +0000 %Y')))
@@ -44,7 +49,8 @@ def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', nargs=1, help='configuration (json) file path')
-    parser.add_argument('--output', nargs=1, help='destination (gexf) file path')
+    parser.add_argument('--graph-output', nargs=1, help='destination (gexf) file path')
+    parser.add_argument('--tweets-output', nargs='?', help='destination (json) file path', default='')
     parser.add_argument('-v', '--verbosity', help='increase output verbosity',
                         action='count')
     parser.add_argument('accounts', help='initial accounts (csv) file path')
@@ -85,7 +91,10 @@ def main():
     g = graph.remove_small_communities(g, clusters, min_size=cfg['graph']['min_community_size'])
 
     # save graph
-    nx.write_gexf(g, args.output[0])
+    nx.write_gexf(g, args.graph_output[0])
+
+    if args.tweets_output:
+        write_json_output(tweets, args.tweets_output)
 
 
 if __name__ == '__main__':
