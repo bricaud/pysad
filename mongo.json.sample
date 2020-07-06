@@ -1,0 +1,8 @@
+{
+  "user": "username",
+  "password": "secret_password",
+  "host": "127.0.0.1",
+  "port": 27017,
+  "database": "db_name",
+  "collection": "coll_name"
+}

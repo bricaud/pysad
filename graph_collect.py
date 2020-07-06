@@ -6,7 +6,9 @@ import graph
 import networkx as nx
 import pandas as pd
 import logging
-import itertools
+from pymongo import MongoClient
+from urllib.parse import quote_plus
+from pymongo.errors import ConnectionFailure, BulkWriteError
 from datetime import datetime
 import sys
 
@@ -27,6 +29,22 @@ def read_config_file(filename):
 def write_json_output(dict, filename):
     with open(filename, 'w') as f:
         json.dump(dict, f)
+
+
+def write_mongodb_output(cfg, tweets):
+    mongo_url = 'mongodb://{}:{}@{}/default_db?authSource={}'.format(quote_plus(cfg['user']),
+                                                                     quote_plus(cfg['password']),
+                                                                     cfg['host'], cfg['database'])
+    try:
+        client = MongoClient(mongo_url, cfg['port'])
+        coll = client[cfg['database']][cfg['collection']]
+        # add _id field
+        tweets_mongo = [{**v, '_id': k} for k, v in tweets.items()]
+        coll.insert_many(tweets_mongo, ordered=False)
+    except BulkWriteError:
+        logger.info('Duplicates were found.')
+    except ConnectionFailure:
+        logger.error('Server not available {}@{}:{}'.format(cfg['user'], cfg['host'], cfg['port']))
 
 
 def get_date_range(tweets):
@@ -71,10 +89,13 @@ def main():
     graph_handle.rules = cfg['rules']
     user_list, nodes_df, edges_df, hashtags, tweets = collect.spiky_ball(initial_accounts,
                                                                          graph_handle,
-                                                                         exploration_depth=cfg['collection_settings']['exploration_depth'],
+                                                                         exploration_depth=cfg['collection_settings'][
+                                                                             'exploration_depth'],
                                                                          mode=cfg['collection_settings']['mode'],
-                                                                         random_subset_size=cfg['collection_settings']['random_subset_size'],
-                                                                         spread_type=cfg['collection_settings']['spread_type'],
+                                                                         random_subset_size=cfg['collection_settings'][
+                                                                             'random_subset_size'],
+                                                                         spread_type=cfg['collection_settings'][
+                                                                             'spread_type'],
                                                                          )
     logger.info('Total number of users mentioned: {}'.format(len(user_list)))
     start_date, end_date = get_date_range(tweets)
@@ -93,8 +114,12 @@ def main():
     # save graph
     nx.write_gexf(g, args.graph_output[0])
 
+    # tweets output
     if args.tweets_output:
         write_json_output(tweets, args.tweets_output)
+    if cfg['mongodb']['enabled']:
+        cfg_mongo = read_config_file(cfg['mongodb']['config'])
+        write_mongodb_output(cfg_mongo, tweets)
 
 
 if __name__ == '__main__':
