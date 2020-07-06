@@ -10,15 +10,9 @@ from tqdm import tqdm
 
 class twitter_network:
 
-    def __init__(self, credential_file):
-
-        # Load credentials from json file
-        # "twitter_credentials.json"
-        with open(credential_file, "r") as file:
-            creds = json.load(file)
-
+    def __init__(self, credentials):
         # Instantiate an object
-        self.twitter_handle = Twython(creds['CONSUMER_KEY'], creds['CONSUMER_SECRET'])
+        self.twitter_handle = Twython(credentials['CONSUMER_KEY'], credentials['CONSUMER_SECRET'])
         self.rules = {
             'min_mentions': 0, 'max_day_old': None, 'max_tweets_per_user': 200, 'nb_popular_tweets': 10,
             'users_to_remove': []

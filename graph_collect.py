@@ -11,6 +11,7 @@ from urllib.parse import quote_plus
 from pymongo.errors import ConnectionFailure, BulkWriteError
 from datetime import datetime
 import sys
+import os
 
 # logging.basicConfig(level=logging.ERROR)
 # Creating an object
@@ -67,8 +68,13 @@ def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', nargs=1, help='configuration (json) file path')
+    parser.add_argument('--twitter-credentials', nargs='?',
+                        help='twitter credential file (if missing, set environment variables)', default='')
     parser.add_argument('--graph-output', nargs=1, help='destination (gexf) file path')
     parser.add_argument('--tweets-output', nargs='?', help='destination (json) file path', default='')
+    parser.add_argument('--mongodb-config',
+                        nargs='?', help='configuration (json) file path for (optional) MongoDB output',
+                        default='')
     parser.add_argument('-v', '--verbosity', help='increase output verbosity',
                         action='count')
     parser.add_argument('accounts', help='initial accounts (csv) file path')
@@ -83,7 +89,14 @@ def main():
         logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    graph_handle = twitter.twitter_network(cfg['credentials_file'])
+    if args.twitter_credentials:
+        twitter_creds = read_config_file(args.twitter_credentials)
+    else:
+        twitter_creds = {
+            'CONSUMER_KEY': os.getenv('TWITTER_CONSUMER_KEY', ''),
+            'CONSUMER_SECRET': os.getence('TWITTER_CONSUMER_SECRET', '')
+        }
+    graph_handle = twitter.twitter_network(twitter_creds)
     # flatten dictionary
     initial_accounts = pd.read_csv(args.accounts).iloc[:, 0].values.tolist()
     graph_handle.rules = cfg['rules']
@@ -117,8 +130,8 @@ def main():
     # tweets output
     if args.tweets_output:
         write_json_output(tweets, args.tweets_output)
-    if cfg['mongodb']['enabled']:
-        cfg_mongo = read_config_file(cfg['mongodb']['config'])
+    if args.mongodb_config:
+        cfg_mongo = read_config_file(args.mongodb_config)
         write_mongodb_output(cfg_mongo, tweets)
 
 
