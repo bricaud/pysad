@@ -94,7 +94,7 @@ def main():
     else:
         twitter_creds = {
             'CONSUMER_KEY': os.getenv('TWITTER_CONSUMER_KEY', ''),
-            'CONSUMER_SECRET': os.getence('TWITTER_CONSUMER_SECRET', '')
+            'CONSUMER_SECRET': os.getenv('TWITTER_CONSUMER_SECRET', '')
         }
     graph_handle = twitter.twitter_network(twitter_creds)
     # flatten dictionary
