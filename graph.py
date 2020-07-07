@@ -4,7 +4,7 @@ import community
 import numpy as np
 import json
 import glob
-import pysad.collect
+import collect
 import logging
 from datetime import datetime
 from collections import Counter
