@@ -15,6 +15,7 @@ Collect data:
 
   before_script:
     - export RUN_DATE=`date +%Y-%m-%d_%H-%M`
+    - mkdir -p graphs
     - python -V  # Print out python version for debugging
     - pip install virtualenv
     - virtualenv venv
@@ -27,3 +28,4 @@ Collect data:
   artifacts:
     paths:
       - graphs/*.gexf
+    expire_in: 2 months
