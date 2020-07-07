@@ -2,7 +2,6 @@ image: python:3.7
 
 stages:
   - collect
-  - upload
 
 Collect data:
   stage: collect
@@ -23,11 +22,8 @@ Collect data:
     - pip install -r requirements.txt
 
   script:
-    - python graph_collect.py --config $CONFIG_JSON --mongodb-config $MONGODB_CONFIG --graph-output graph_${RUN_DATE}.gexf -v $ACCOUNTS_CSV_SMALL
+    - python graph_collect.py --config $CONFIG_JSON --mongodb-config $MONGODB_CONFIG --graph-output graphs/graph_${RUN_DATE}.gexf -v $ACCOUNTS_CSV_SMALL
 
-
-Upload results:
-  stage: upload
-  script:
-    - echo "TODO"
-
+  artifacts:
+    paths:
+      - graphs/*.gexf
