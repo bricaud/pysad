@@ -3,6 +3,7 @@ import json
 import twitter
 import collect
 import graph
+from NodeInfo import TwitterNodeInfo
 import networkx as nx
 import pandas as pd
 import logging
@@ -100,22 +101,23 @@ def main():
     # flatten dictionary
     initial_accounts = pd.read_csv(args.accounts).iloc[:, 0].values.tolist()
     graph_handle.rules = cfg['rules']
-    user_list, nodes_df, edges_df, hashtags, tweets = collect.spiky_ball(initial_accounts,
-                                                                         graph_handle,
-                                                                         exploration_depth=cfg['collection_settings'][
-                                                                             'exploration_depth'],
-                                                                         mode=cfg['collection_settings']['mode'],
-                                                                         random_subset_size=cfg['collection_settings'][
-                                                                             'random_subset_size'],
-                                                                         spread_type=cfg['collection_settings'][
-                                                                             'spread_type'],
-                                                                         )
+    user_list, nodes_df, edges_df, tweets_info = collect.spiky_ball(initial_accounts,
+                                                                    graph_handle,
+                                                                    exploration_depth=cfg['collection_settings'][
+                                                                        'exploration_depth'],
+                                                                    mode=cfg['collection_settings']['mode'],
+                                                                    random_subset_size=cfg['collection_settings'][
+                                                                        'random_subset_size'],
+                                                                    spread_type=cfg['collection_settings'][
+                                                                        'spread_type'],
+                                                                    node_acc=TwitterNodeInfo()
+                                                                    )
     logger.info('Total number of users mentioned: {}'.format(len(user_list)))
-    start_date, end_date = get_date_range(tweets)
+    start_date, end_date = get_date_range(tweets_info.user_tweets)
     logger.info('Range of tweets date from {} to {}'.format(start_date, end_date))
 
     # create graph from edge list
-    g = create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg['graph'])
+    g = create_graph(graph_handle, nodes_df, edges_df, tweets_info.user_hashtags, cfg['graph'])
     g.graph['end_date'] = end_date
     g.graph['start_date'] = start_date
 
@@ -129,10 +131,10 @@ def main():
 
     # tweets output
     if args.tweets_output:
-        write_json_output(tweets, args.tweets_output)
+        write_json_output(tweets_info.user_tweets, args.tweets_output)
     if args.mongodb_config:
         cfg_mongo = read_config_file(args.mongodb_config)
-        write_mongodb_output(cfg_mongo, tweets)
+        write_mongodb_output(cfg_mongo, tweets_info.user_tweets)
 
 
 if __name__ == '__main__':
