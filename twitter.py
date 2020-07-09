@@ -21,7 +21,7 @@ class twitter_network:
 
     def get_neighbors(self, user):
         if not isinstance(user, str):
-            return pd.DataFrame(), pd.DataFrame()
+            return TwitterNodeInfo(), pd.DataFrame()
         tweets_dic, tweets_meta = self.get_user_tweets(user)
         edges_df, node_info = self.edges_nodes_from_user(tweets_meta, tweets_dic)
         return node_info, edges_df

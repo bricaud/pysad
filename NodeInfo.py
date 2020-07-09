@@ -10,6 +10,17 @@ class NodeInfo:
         return pd.DataFrame()
 
 
+class SynthNodeInfo(NodeInfo):
+    def __init__(self, nodes):
+        self.nodes = nodes
+
+    def update(self, new_info):
+        return
+
+    def get_nodes(self):
+        return self.nodes
+
+
 class TwitterNodeInfo(NodeInfo):
     def __init__(self, user_hashtags={}, user_tweets={}, tweets_meta=pd.DataFrame()):
         self.user_hashtags = user_hashtags
