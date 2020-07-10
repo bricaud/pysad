@@ -59,8 +59,8 @@ def get_date_range(tweets):
 
 def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
     g = graph.graph_from_edgeslist(edges_df, min_weight=cfg['min_weight'])
-    g = graph.add_edges_attributes(g, edges_df)
-    g = graph.add_node_attributes(g, reshape_node_data(nodes_df), hashtags)
+    g = graph.add_edges_attributes(g, edges_df, drop_cols=['tweet_id'])
+    g = graph.add_node_attributes(g, reshape_node_data(nodes_df), attr_dic=hashtags, attr_name='all_hashtags')
     g = graph.reduce_graph(g, cfg['min_degree'])
     g = graph.handle_spikyball_neighbors(g, graph_handle)  # ,remove=False)
     return g

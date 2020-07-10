@@ -58,18 +58,22 @@ def attributes_tojson(data_dic):
     return data_dic
 
 
-def add_node_attributes(graph, node_df, hashtags):
+def add_node_attributes(graph, node_df, attr_dic=None, attr_name=''):
     node_dic = node_df.to_dict()
 
     node_dic = attributes_tojson(node_dic)
     for propname, propdic in node_dic.items():
         nx.set_node_attributes(graph, propdic, name=propname)
-    nx.set_node_attributes(graph, hashtags, name='all_hashtags')
+    if attr_dic:
+        nx.set_node_attributes(graph, attr_dic, name=attr_name)
     return graph
 
 
-def add_edges_attributes(G, edges_df):
-    edge_dic = edges_df.drop(columns=['tweet_id']).to_dict()
+def add_edges_attributes(G, edges_df, drop_cols=None):
+    if drop_cols:
+        edge_dic = edges_df.drop(columns=drop_cols).to_dict()
+    else:
+        edge_dic = edges_df.to_dict()
     # edge_dic = attributes_tojson(edge_dic)
     for propname, propdic in edge_dic.items():
         nx.set_edge_attributes(G, propdic, name=propname)
