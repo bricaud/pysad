@@ -5,10 +5,11 @@ import pandas as pd
 from datetime import datetime, timedelta, time
 from twython import TwythonError, TwythonRateLimitError, TwythonAuthError  # to check the returned API errors
 import logging
+from .NodeInfo import TwitterNodeInfo
 from tqdm import tqdm
 
 
-class twitter_network:
+class TwitterNetwork:
 
     def __init__(self, credentials):
         # Instantiate an object
@@ -20,7 +21,7 @@ class twitter_network:
 
     def get_neighbors(self, user):
         if not isinstance(user, str):
-            return pd.DataFrame(), pd.DataFrame()
+            return TwitterNodeInfo(), pd.DataFrame()
         tweets_dic, tweets_meta = self.get_user_tweets(user)
         edges_df, node_info = self.edges_nodes_from_user(tweets_meta, tweets_dic)
         return node_info, edges_df
@@ -190,7 +191,7 @@ class twitter_network:
 
     def get_nodes_properties(self, tweets_meta, tweets_dic):
         if not tweets_meta:
-            return {'user_tweets': {}, 'tweets_meta': pd.DataFrame(), 'user_hashtags': {}}
+            return TwitterNodeInfo({}, {}, pd.DataFrame())
         nb_popular_tweets = self.rules['nb_popular_tweets']
         # global properties
         meta_df = pd.DataFrame.from_dict(tweets_meta, orient='index') \
@@ -204,8 +205,7 @@ class twitter_network:
         tweets_meta_kept = meta_df.head(nb_popular_tweets)
         tweets_kept = {k: tweets_dic[k] for k in tweets_meta_kept.index.to_list()}
         # Get most popular tweets of user
-        return {'user_tweets': tweets_kept, 'tweets_meta': tweets_meta_kept,
-                'user_hashtags': {user_name: user_hashtags['count']}}
+        return TwitterNodeInfo({user_name: user_hashtags['count']}, tweets_kept, tweets_meta_kept)
 
 
 #####################################################

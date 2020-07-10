@@ -1,8 +1,9 @@
 import argparse
 import json
-import twitter
-import collect
-import graph
+from pysad.twitter import TwitterNetwork, reshape_node_data
+from pysad import collect
+from pysad import graph
+from pysad.NodeInfo import TwitterNodeInfo
 import networkx as nx
 import pandas as pd
 import logging
@@ -58,8 +59,8 @@ def get_date_range(tweets):
 
 def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
     g = graph.graph_from_edgeslist(edges_df, min_weight=cfg['min_weight'])
-    g = graph.add_edges_attributes(g, edges_df)
-    g = graph.add_node_attributes(g, twitter.reshape_node_data(nodes_df), hashtags)
+    g = graph.add_edges_attributes(g, edges_df, drop_cols=['tweet_id'])
+    g = graph.add_node_attributes(g, reshape_node_data(nodes_df), attr_dic=hashtags, attr_name='all_hashtags')
     g = graph.reduce_graph(g, cfg['min_degree'])
     g = graph.handle_spikyball_neighbors(g, graph_handle)  # ,remove=False)
     return g
@@ -96,26 +97,27 @@ def main():
             'CONSUMER_KEY': os.getenv('TWITTER_CONSUMER_KEY', ''),
             'CONSUMER_SECRET': os.getenv('TWITTER_CONSUMER_SECRET', '')
         }
-    graph_handle = twitter.twitter_network(twitter_creds)
+    graph_handle = TwitterNetwork(twitter_creds)
     # flatten dictionary
     initial_accounts = pd.read_csv(args.accounts).iloc[:, 0].values.tolist()
     graph_handle.rules = cfg['rules']
-    user_list, nodes_df, edges_df, hashtags, tweets = collect.spiky_ball(initial_accounts,
-                                                                         graph_handle,
-                                                                         exploration_depth=cfg['collection_settings'][
-                                                                             'exploration_depth'],
-                                                                         mode=cfg['collection_settings']['mode'],
-                                                                         random_subset_size=cfg['collection_settings'][
-                                                                             'random_subset_size'],
-                                                                         spread_type=cfg['collection_settings'][
-                                                                             'spread_type'],
-                                                                         )
+    user_list, nodes_df, edges_df, tweets_info = collect.spiky_ball(initial_accounts,
+                                                                    graph_handle,
+                                                                    exploration_depth=cfg['collection_settings'][
+                                                                        'exploration_depth'],
+                                                                    mode=cfg['collection_settings']['mode'],
+                                                                    random_subset_size=cfg['collection_settings'][
+                                                                        'random_subset_size'],
+                                                                    spread_type=cfg['collection_settings'][
+                                                                        'spread_type'],
+                                                                    node_acc=TwitterNodeInfo()
+                                                                    )
     logger.info('Total number of users mentioned: {}'.format(len(user_list)))
-    start_date, end_date = get_date_range(tweets)
+    start_date, end_date = get_date_range(tweets_info.user_tweets)
     logger.info('Range of tweets date from {} to {}'.format(start_date, end_date))
 
     # create graph from edge list
-    g = create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg['graph'])
+    g = create_graph(graph_handle, nodes_df, edges_df, tweets_info.user_hashtags, cfg['graph'])
     g.graph['end_date'] = end_date
     g.graph['start_date'] = start_date
 
@@ -129,10 +131,10 @@ def main():
 
     # tweets output
     if args.tweets_output:
-        write_json_output(tweets, args.tweets_output)
+        write_json_output(tweets_info.user_tweets, args.tweets_output)
     if args.mongodb_config:
         cfg_mongo = read_config_file(args.mongodb_config)
-        write_mongodb_output(cfg_mongo, tweets)
+        write_mongodb_output(cfg_mongo, tweets_info.user_tweets)
 
 
 if __name__ == '__main__':

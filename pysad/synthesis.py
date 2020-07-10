@@ -1,8 +1,9 @@
 import networkx as nx
 import pandas as pd
+from .NodeInfo import SynthNodeInfo
 
 
-class graph:
+class SyntheticNetwork:
 
 	def __init__(self, g):
 		# Instantiate an object
@@ -14,7 +15,7 @@ class graph:
 		# return 2 dataframes, one with edges info and the other with the node info
 		G = self.G
 		if node_id not in G:
-			return pd.DataFrame(), pd.DataFrame()
+			return SynthNodeInfo(pd.DataFrame()), pd.DataFrame()
 		# node data
 		node_df = pd.DataFrame([{'source': node_id, **G.nodes[node_id]}])
 		# Edges and edge data		
@@ -29,16 +30,17 @@ class graph:
 			edge_dic = {'source': source, 'target': target, **data}
 			edgeprop_dic_list.append(edge_dic)
 		edges_df = pd.DataFrame(edgeprop_dic_list)
-		return node_df, edges_df
+		edges_df['weight'] = 1.0
+		return SynthNodeInfo(node_df), edges_df
 
-	def filter(self, node_df, edges_df):
+	def filter(self, node_info, edges_df):
 		if len(edges_df) < self.rules['min_degree']:
 			# discard the node
-			node_df = pd.DataFrame()
+			node_info = SynthNodeInfo(pd.DataFrame())
 			edges_df = pd.DataFrame()
 		# filter the edges
 		edges_df = self.filter_edges(edges_df)
-		return node_df, edges_df
+		return node_info, edges_df
 
 	def filter_edges(self, edges_df):
 		#edges_g = self.group_edges(edges_df)	
@@ -50,6 +52,8 @@ class graph:
 		return edges_df
 
 	def neighbors_list(self, edges_df):
+		if edges_df.empty:
+			return edges_df
 		neighbors = edges_df['target'].unique().tolist()
 		return neighbors
 
