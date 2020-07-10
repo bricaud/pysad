@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import datetime
 from collections import Counter
+from .collect import process_hop
 
 
 def converttojson(edge_df):
@@ -92,7 +93,7 @@ def reduce_graph(G, degree_min):
     return G
 
 
-def handle_spikyball_neighbors(G, graph_handle, remove=True):
+def handle_spikyball_neighbors(G, graph_handle, remove=True, node_acc=None):
     # Complete the info of the nodes not collected
     sp_neighbors = [node for node, data in G.nodes(data=True) if 'spikyball_hop' not in data]
     logging.info('Number of neighbors of the spiky ball: {}'.format(len(sp_neighbors)))
@@ -107,7 +108,7 @@ def handle_spikyball_neighbors(G, graph_handle, remove=True):
         # TODO this needs checking
         # Option 2: collect the missing node data
         logging.info('Collecting info for neighbors...')
-        new_nodes_founds, edges_df, nodes_df, hashtags, tweets = pysad.collect.process_hop(graph_handle, sp_neighbors)
+        new_nodes_founds, edges_df, nodes_df, node_acc = process_hop(graph_handle, sp_neighbors, node_acc)
         G = add_node_attributes(G, nodes_df)
         sp_nodes_dic = {node: -1 for node in sp_neighbors}
         nx.set_node_attributes(G, sp_nodes_dic, name='spikyball_hop')
