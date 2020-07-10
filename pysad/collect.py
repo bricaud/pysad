@@ -4,7 +4,7 @@ import numpy as np
 import operator
 import os
 import logging
-from NodeInfo import NodeInfo
+from .NodeInfo import NodeInfo
 
 
 def combine_dicts(a, b, op=operator.add):

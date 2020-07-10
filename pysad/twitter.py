@@ -5,11 +5,11 @@ import pandas as pd
 from datetime import datetime, timedelta, time
 from twython import TwythonError, TwythonRateLimitError, TwythonAuthError  # to check the returned API errors
 import logging
-from NodeInfo import TwitterNodeInfo
+from .NodeInfo import TwitterNodeInfo
 from tqdm import tqdm
 
 
-class twitter_network:
+class TwitterNetwork:
 
     def __init__(self, credentials):
         # Instantiate an object

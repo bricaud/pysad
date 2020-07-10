@@ -1,17 +1,16 @@
 import pandas as pd
 
 
-class NodeInfo:
+class NodeInfo:  # abstract interface
     def update(self, new_info):
-        # dummy no-op
-        return
+        raise NotImplementedError
 
     def get_nodes(self):
-        return pd.DataFrame()
+        raise NotImplementedError
 
 
 class SynthNodeInfo(NodeInfo):
-    def __init__(self, nodes):
+    def __init__(self, nodes=pd.DataFrame()):
         self.nodes = nodes
 
     def update(self, new_info):

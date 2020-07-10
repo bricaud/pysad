@@ -1,9 +1,9 @@
 import argparse
 import json
-import twitter
-import collect
-import graph
-from NodeInfo import TwitterNodeInfo
+from pysad.twitter import TwitterNetwork, reshape_node_data
+from pysad import collect
+from pysad import graph
+from pysad.NodeInfo import TwitterNodeInfo
 import networkx as nx
 import pandas as pd
 import logging
@@ -60,7 +60,7 @@ def get_date_range(tweets):
 def create_graph(graph_handle, nodes_df, edges_df, hashtags, cfg):
     g = graph.graph_from_edgeslist(edges_df, min_weight=cfg['min_weight'])
     g = graph.add_edges_attributes(g, edges_df)
-    g = graph.add_node_attributes(g, twitter.reshape_node_data(nodes_df), hashtags)
+    g = graph.add_node_attributes(g, reshape_node_data(nodes_df), hashtags)
     g = graph.reduce_graph(g, cfg['min_degree'])
     g = graph.handle_spikyball_neighbors(g, graph_handle)  # ,remove=False)
     return g
@@ -97,7 +97,7 @@ def main():
             'CONSUMER_KEY': os.getenv('TWITTER_CONSUMER_KEY', ''),
             'CONSUMER_SECRET': os.getenv('TWITTER_CONSUMER_SECRET', '')
         }
-    graph_handle = twitter.twitter_network(twitter_creds)
+    graph_handle = TwitterNetwork(twitter_creds)
     # flatten dictionary
     initial_accounts = pd.read_csv(args.accounts).iloc[:, 0].values.tolist()
     graph_handle.rules = cfg['rules']

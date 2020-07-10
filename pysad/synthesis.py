@@ -1,9 +1,9 @@
 import networkx as nx
 import pandas as pd
-from NodeInfo import SynthNodeInfo
+from .NodeInfo import SynthNodeInfo
 
 
-class graph:
+class SyntheticNetwork:
 
 	def __init__(self, g):
 		# Instantiate an object
