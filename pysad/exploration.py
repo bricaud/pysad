@@ -54,7 +54,8 @@ def random_subset(edges_df, balltype, mode, mode_value=None):
 
     # TODO handle balltype
     nb_edges = len(edges_df)
-
+    if nb_edges == 0:
+        return [], pd.DataFrame()
     edges_df.reset_index(drop=True,inplace=True) # needs unique index values for random choice
     edges_indices, proba_f = probability_function(edges_df, balltype)
 
@@ -100,10 +101,11 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
 
     # Initialization
     new_node_list = initial_node_list.copy()
-    total_node_list = new_node_list
+    total_node_list = [] #new_node_list
 
     total_edges_df = pd.DataFrame()
     total_nodes_df = pd.DataFrame()
+    new_edges = pd.DataFrame()
 
     # Loop over layers
     for depth in range(exploration_depth):
@@ -112,24 +114,23 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
 
         edges_df, nodes_df, node_acc = get_node_info(graph_handle, new_node_list, node_acc)
         if nodes_df.empty:
-            continue
+            break
         nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes
         
+        total_node_list = total_node_list + new_node_list
         edges_df_in,edges_df_out = split_edges(edges_df, total_node_list)
 
         # Equivalent of add to graph
         total_edges_df = total_edges_df.append(edges_df_in)
         total_nodes_df = total_nodes_df.append(nodes_df)
-        new_node_list = edges_df_out['target'].unique().tolist()
-
-        if not new_node_list: # no more node to sample in the graph
-            break
-        new_node_list, new_edges = random_subset(edges_df_out, balltype, mode=mode, mode_value=random_subset_size)
-        print('new edges:',len(edges_df_out),'subset:',len(new_edges))
-
         # add the edges linking the new nodes
         total_edges_df = total_edges_df.append(new_edges)
-        total_node_list = total_node_list + new_node_list
+        
+
+        new_node_list, new_edges = random_subset(edges_df_out, balltype, mode=mode, mode_value=random_subset_size)
+        print('new edges:',len(edges_df_out),'subset:',len(new_edges), 'in_edges:', len(edges_df_in))
+
+
 
     total_edges_df = total_edges_df.sort_values('weight', ascending=False)
     #total_node_list = list(total_node_dic.keys())  # set of unique nodes
