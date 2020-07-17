@@ -13,6 +13,9 @@ def split_edges(edges_df, node_list):
     edges_df_out = edges_df[~(edges_df['target'].isin(node_list))]
     return edges_df_in, edges_df_out 
 
+def remove_edges_with_target_nodes(edges_df, node_list):
+    new_edges_df = edges_df[edges_df['target'].isin(node_list)]
+    return new_edges_df
 
 def get_node_info(graph_handle, node_list, nodes_info_acc):
     """ collect the node info and neighbors for the nodes in node_list
@@ -87,7 +90,7 @@ def random_subset(edges_df, balltype, mode, mode_value=None):
 
 def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
                mode='percent', random_subset_size=None, balltype='spikyball',
-               node_acc=NodeInfo()):
+               node_acc=NodeInfo(), number_of_nodes=False):
     """ Sample the graph by exploring from an initial node list
     """
 
@@ -112,12 +115,27 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
         logging.debug('')
         logging.debug('******* Processing users at {}-hop distance *******'.format(depth))
 
+        # Option to choose the number of nodes in the final graph
+        if number_of_nodes:
+            if len(total_node_list + new_node_list) > number_of_nodes:
+                # Truncate the list of new nodes
+                max_nodes = number_of_nodes - len(total_node_list)
+                if max_nodes <=0:
+                    break
+                print('-- max nb of nodes reached in iteration', depth,'--')
+                #print('nodes info',len(total_node_list),len(new_node_list),max_nodes)
+                new_node_list = new_node_list[:max_nodes]
+                new_edges = remove_edges_with_target_nodes(new_edges, new_node_list)
+                #print('new node list',len(new_node_list))
+
+
         edges_df, nodes_df, node_acc = get_node_info(graph_handle, new_node_list, node_acc)
         if nodes_df.empty:
             break
-        nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes
+        nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes    
         
         total_node_list = total_node_list + new_node_list
+
         edges_df_in,edges_df_out = split_edges(edges_df, total_node_list)
 
         # Equivalent of add to graph
