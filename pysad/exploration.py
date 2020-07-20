@@ -72,13 +72,13 @@ def random_subset(edges_df, balltype, mode, mode_value=None):
         else:
             random_subset_size = nb_edges
     elif mode == 'percent':
-        ratio = mode_value
-        if ratio <= 1 and ratio > 0:
+        if mode_value <= 100 and mode_value > 0:
+            ratio = 0.01*mode_value
             random_subset_size = round(nb_edges * ratio)
             if random_subset_size < 2:  # in case the number of edges is too small
                 random_subset_size = min(nb_edges,10)
         else:
-            raise Exception('the value must be between 0 and 1.')
+            raise Exception('the value must be between 0 and 100.')
     else:
         raise Exception('Unknown mode. Choose "constant" or "percent".')
     r_edges_idx = np.random.choice(edges_indices, random_subset_size, p=proba_f, replace=False)
@@ -122,7 +122,7 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
                 max_nodes = number_of_nodes - len(total_node_list)
                 if max_nodes <=0:
                     break
-                print('-- max nb of nodes reached in iteration', depth,'--')
+                logging.info('-- max nb of nodes reached in iteration', depth,'--')
                 #print('nodes info',len(total_node_list),len(new_node_list),max_nodes)
                 new_node_list = new_node_list[:max_nodes]
                 new_edges = remove_edges_with_target_nodes(new_edges, new_node_list)
