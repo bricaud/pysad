@@ -122,7 +122,7 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
                 max_nodes = number_of_nodes - len(total_node_list)
                 if max_nodes <=0:
                     break
-                logging.info('-- max nb of nodes reached in iteration', depth,'--')
+                logging.info('-- max nb of nodes reached in iteration {} --'.format(depth))
                 #print('nodes info',len(total_node_list),len(new_node_list),max_nodes)
                 new_node_list = new_node_list[:max_nodes]
                 new_edges = remove_edges_with_target_nodes(new_edges, new_node_list)
@@ -146,7 +146,7 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
         
 
         new_node_list, new_edges = random_subset(edges_df_out, balltype, mode=mode, mode_value=random_subset_size)
-        print('new edges:',len(edges_df_out),'subset:',len(new_edges), 'in_edges:', len(edges_df_in))
+        logging.debug('new edges:{} subset:{} in_edges:{}'.format(len(edges_df_out), len(new_edges), len(edges_df_in)))
 
 
 
