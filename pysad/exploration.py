@@ -37,30 +37,51 @@ def get_node_info(graph_handle, node_list, nodes_info_acc):
 
     return total_edges_df, total_nodes_df, nodes_info_acc
 
-def probability_function(edges_df, balltype):
-    edges_indices = edges_df.index.tolist()
-    if balltype =='spikyball':
-        # Taking the weights into account for the random selection
-        proba_unormalized = np.array(edges_df['weight'].tolist())
+def degree_weight(node_type, edges_df):
+    edges_df.reset_index(inplace=True)
+    degree_df = edges_df[[node_type,'weight']].groupby([node_type]).sum()
+    degree_df.columns = ['degree_'+node_type]
+    # needs reset_index and set_index to keep the initial index.
+    edges_df = edges_df.merge(degree_df, on=node_type)
+    edges_df.set_index('index',inplace=True)
+    edges_df.sort_index(inplace=True)
+    #edges_df2['weight_over_degree'] = edges_df2['weight']/edges_df2['degree']
+    degree_vec = np.array(edges_df['degree_'+node_type].tolist())
+    return degree_vec, edges_df
+
+def probability_function(edges_df, balltype, coeff):
+     # Taking the weights into account for the random selection
+    if balltype =='spikyball':       
+        source_coeff, edge_coeff, target_coeff = 0, 1, 0
+    elif balltype =='hubball':
+        source_coeff, edge_coeff, target_coeff = coeff, 1, 0
+    elif balltype == 'coreball':
+        source_coeff, edge_coeff, target_coeff = 0, 1, coeff
     elif balltype == 'fireball':
-        degree_df = edges_df[['source','weight']].groupby(['source']).sum()
-        degree_df.columns = ['degree']
-        edges_df2 = edges_df.merge(degree_df, on='source')
-        edges_df2['weight_over_degree'] = edges_df2['weight']/edges_df2['degree']
-        proba_unormalized = np.array(edges_df2['weight_over_degree'].tolist())
+        source_coeff, edge_coeff, target_coeff = -1, 1, 0
+    elif balltype == 'firecoreball':
+        source_coeff, edge_coeff, target_coeff = -1, 1, coeff        
     else:
         raise ValueError('Unknown ball type.')
-    proba_f = proba_unormalized / np.sum(proba_unormalized) # Normalize weights
-    return edges_indices, proba_f
 
-def random_subset(edges_df, balltype, mode, mode_value=None):
+    weight_vec = np.array(edges_df['weight'].tolist())
+    target_degree_vec, edges_df = degree_weight('target', edges_df)
+    source_degree_vec, edges_df = degree_weight('source', edges_df)
+
+
+    proba_unormalized = (source_degree_vec**source_coeff) * weight_vec**edge_coeff * (target_degree_vec**target_coeff)
+    proba_f = proba_unormalized / np.sum(proba_unormalized) # Normalize weights
+    
+    return edges_df.index.tolist(), proba_f, edges_df
+
+def random_subset(edges_df, balltype, mode, coeff, mode_value=None):
 
     # TODO handle balltype
     nb_edges = len(edges_df)
     if nb_edges == 0:
         return [], pd.DataFrame()
     edges_df.reset_index(drop=True,inplace=True) # needs unique index values for random choice
-    edges_indices, proba_f = probability_function(edges_df, balltype)
+    edges_indices, proba_f, edges_df = probability_function(edges_df, balltype, coeff)
 
     if mode == 'constant':
         random_subset_size = mode_value
@@ -83,13 +104,15 @@ def random_subset(edges_df, balltype, mode, mode_value=None):
         raise Exception('Unknown mode. Choose "constant" or "percent".')
     r_edges_idx = np.random.choice(edges_indices, random_subset_size, p=proba_f, replace=False)
     r_edges_df = edges_df.loc[r_edges_idx,:]
-
+    #print(proba_f)
+    #print(edges_indices)
+    #print(r_edges_df)
     nodes_list = r_edges_df['target'].unique().tolist()
     return nodes_list, r_edges_df
 
 
 def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
-               mode='percent', random_subset_size=None, balltype='spikyball',
+               mode='percent', random_subset_size=None, balltype='spikyball', coeff=0,
                node_acc=NodeInfo(), number_of_nodes=False):
     """ Sample the graph by exploring from an initial node list
     """
@@ -145,7 +168,7 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
         total_edges_df = total_edges_df.append(new_edges)
         
 
-        new_node_list, new_edges = random_subset(edges_df_out, balltype, mode=mode, mode_value=random_subset_size)
+        new_node_list, new_edges = random_subset(edges_df_out, balltype, mode=mode, mode_value=random_subset_size, coeff=coeff)
         print('new edges:',len(edges_df_out),'subset:',len(new_edges), 'in_edges:', len(edges_df_in))
 
 
