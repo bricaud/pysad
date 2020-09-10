@@ -71,7 +71,7 @@ def random_subset(node_dic, mode, random_subset_size=None):
 
 
 def spiky_ball(username_list, graph_handle, exploration_depth=4,
-               mode='percent', random_subset_size=None, spread_type='sharp',
+               mode='percent', random_subset_size=None,
                node_acc=NodeInfo()):
     """ Collect the tweets of the users and their mentions
         make an edge list user -> mention
@@ -97,21 +97,15 @@ def spiky_ball(username_list, graph_handle, exploration_depth=4,
         logging.debug('')
         logging.debug('******* Processing users at {}-hop distance *******'.format(depth))
 
-        if spread_type == 'sharp':
-            if not new_node_dic:
-                break
-            new_node_dic = random_subset(new_node_dic, mode=mode, random_subset_size=random_subset_size)
-            # Avoid visiting twice the same edges
-            # and remove the nodes already collected
-            new_node_list = list(set(new_node_dic.keys()).difference(set(total_node_dic.keys())))
-            total_node_dic = combine_dicts(total_node_dic, new_node_dic)
 
-        elif spread_type == 'broad':
-            total_node_dic = combine_dicts(total_node_dic, new_node_dic)
-            new_node_dic = random_subset(total_node_dic, mode=mode, random_subset_size=random_subset_size)
-            new_node_list = list(new_node_dic.keys())
-        else:
-            raise Exception('Unknown spread type, use spread_type="sharp" or "broad".')
+        if not new_node_dic:
+            break
+        new_node_dic = random_subset(new_node_dic, mode=mode, random_subset_size=random_subset_size)
+        # Avoid visiting twice the same edges
+        # and remove the nodes already collected
+        new_node_list = list(set(new_node_dic.keys()).difference(set(total_node_dic.keys())))
+        total_node_dic = combine_dicts(total_node_dic, new_node_dic)
+
 
         new_node_dic, edges_df, nodes_df, node_acc = process_hop(graph_handle, new_node_list, node_acc)
         if nodes_df.empty:
@@ -130,9 +124,9 @@ def save_data(nodes_df, edges_df, data_path):
     edgefilename = os.path.join(data_path, 'edges_data.json')
     nodefilename = os.path.join(data_path, 'nodes_data.json')
     logging.debug('Writing', edgefilename)
-    edges_df.to_json(edgefilename)
+    edges_df.reset_index().to_json(edgefilename)
     logging.debug('Writing', nodefilename)
-    nodes_df.to_json(nodefilename)
+    nodes_df.reset_index().to_json(nodefilename)
     return None
 
 

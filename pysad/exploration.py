@@ -6,6 +6,8 @@ import os
 import logging
 from .NodeInfo import NodeInfo
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def split_edges(edges_df, node_list):
     # split edges between the ones connecting already collected nodes and the ones connecting new nodes
@@ -24,7 +26,7 @@ def get_node_info(graph_handle, node_list, nodes_info_acc):
     total_nodes_df = pd.DataFrame()
 
     # Display progress bar if needed
-    disable_tqdm = logging.root.level >= logging.INFO
+    disable_tqdm = logging.root.level > logging.INFO
     logging.info('processing next hop with {} nodes'.format(len(node_list)))
     for node in tqdm(node_list, disable=disable_tqdm):
         # Collect neighbors for the next hop
@@ -68,8 +70,10 @@ def probability_function(edges_df, balltype, coeff):
     target_degree_vec, edges_df = degree_weight('target', edges_df)
     source_degree_vec, edges_df = degree_weight('source', edges_df)
 
-
-    proba_unormalized = (source_degree_vec**source_coeff) * weight_vec**edge_coeff * (target_degree_vec**target_coeff)
+    source_func = source_degree_vec.astype(float) ** source_coeff 
+    weight_func = weight_vec.astype(float) ** edge_coeff
+    target_func = target_degree_vec.astype(float) ** target_coeff
+    proba_unormalized = source_func * weight_func * target_func
     proba_f = proba_unormalized / np.sum(proba_unormalized) # Normalize weights
     
     return edges_df.index.tolist(), proba_f, edges_df
@@ -98,6 +102,7 @@ def random_subset(edges_df, balltype, mode, coeff, mode_value=None):
             random_subset_size = round(nb_edges * ratio)
             if random_subset_size < 2:  # in case the number of edges is too small
                 random_subset_size = min(nb_edges,10)
+                print('Fallback used!')
         else:
             raise Exception('the value must be between 0 and 100.')
     else:
@@ -158,7 +163,7 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
         nodes_df['spikyball_hop'] = depth  # Mark the depth of the spiky ball on the nodes    
         
         total_node_list = total_node_list + new_node_list
-
+        #print(edges_df)
         edges_df_in,edges_df_out = split_edges(edges_df, total_node_list)
 
         # Equivalent of add to graph
@@ -168,8 +173,9 @@ def spiky_ball(initial_node_list, graph_handle, exploration_depth=4,
         total_edges_df = total_edges_df.append(new_edges)
         
         new_node_list, new_edges = random_subset(edges_df_out, balltype, mode=mode, mode_value=random_subset_size, coeff=coeff)
-        logging.debug('new edges:{} subset:{} in_edges:{}'.format(len(edges_df_out), len(new_edges), len(edges_df_in)))
+        print('new edges:{} subset:{} in_edges:{}'.format(len(edges_df_out), len(new_edges), len(edges_df_in)))
 
+    print('Nb of layers reached:', depth)
     total_edges_df = total_edges_df.sort_values('weight', ascending=False)
     #total_node_list = list(total_node_dic.keys())  # set of unique nodes
     return total_node_list, total_nodes_df, total_edges_df, node_acc

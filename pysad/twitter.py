@@ -24,6 +24,13 @@ class TwitterNetwork:
             return TwitterNodeInfo(), pd.DataFrame()
         tweets_dic, tweets_meta = self.get_user_tweets(user)
         edges_df, node_info = self.edges_nodes_from_user(tweets_meta, tweets_dic)
+        
+        # replace user and mentions by source and target
+        if not edges_df.empty:
+            edges_df.index.names = ['source','target']
+            edges_df.reset_index(level=['source', 'target'], inplace=True)
+        #print(edges_df)
+        #print(node_info)
         return node_info, edges_df
 
     def filter(self, node_info, edges_df):
@@ -222,19 +229,22 @@ def reshape_node_data(node_df):
 
 # TODO: REMOVE
 def reshape_edge_data(edge_df, min_weight):
-    edge_grouped = edge_df.groupby(['user', 'mention'])
+    source,target = 'source','target'
+    if 'user' in edge_df:
+        source, target = 'user', 'mentions'
+    edge_grouped = edge_df.groupby([source, target])
     edge_list = []
     # grouping together the user->mention and summing their weights
     for name, group in edge_grouped:
         tweets = group.to_json()
         # tweets = group
-        edge_dic = {'user': name[0], 'mention': name[1], 'weight': group['weight'].sum(),
+        edge_dic = {source: name[0], target: name[1], 'weight': group['weight'].sum(),
                     'tweets': tweets}
         if edge_dic['weight'] < min_weight:
             continue
         edge_list.append(edge_dic)
     edge_df = pd.DataFrame(edge_list)
-    edge_df.set_index(['user', 'mention'], inplace=True)
+    edge_df.set_index([source, target], inplace=True)
     return edge_df
 
 
