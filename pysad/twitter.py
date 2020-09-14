@@ -2,7 +2,8 @@
 from twython import Twython
 import json
 import pandas as pd
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
+import time
 from twython import TwythonError, TwythonRateLimitError, TwythonAuthError  # to check the returned API errors
 import logging
 from .NodeInfo import TwitterNodeInfo
@@ -13,7 +14,9 @@ class TwitterNetwork:
 
     def __init__(self, credentials):
         # Instantiate an object
-        self.twitter_handle = Twython(credentials['CONSUMER_KEY'], credentials['CONSUMER_SECRET'])
+        self.consumer_key = credentials['CONSUMER_KEY']
+        self.consumer_secret = credentials['CONSUMER_SECRET']
+        self.twitter_handle = Twython(self.consumer_key, self.consumer_secret)
         self.rules = {
             'min_mentions': 0, 'max_day_old': None, 'max_tweets_per_user': 200, 'nb_popular_tweets': 10,
             'users_to_remove': []
@@ -161,11 +164,12 @@ class TwitterNetwork:
         except TwythonRateLimitError as e_lim:
             logging.warning('API rate limit reached')
             logging.warning(e_lim)
-            wait_time = int(e_lim.retry_after) - time.time()
-            logging.warning('Retry after {} seconds.'.format(wait_time))
-            logging.warning('Entering sleep mode at:', time.ctime())
-            logging.warning('Waking up at:', time.ctime(e_lim.retry_after + 1))
-            time.sleep(wait_time + 1)
+            remainder = float(self.twitter_handle.get_lastfunction_header(header='x-rate-limit-reset')) - time.time()
+            logging.warning('Retry after {} seconds.'.format(remainder))
+            time.sleep(remainder + 1)
+            del self.twitter_handle
+            self.twitter_handle = Twython(self.consumer_key, self.consumer_secret) # seems you need this
+            return {}, {} #  best way to handle it ?
         except TwythonError as e:
             logging.error('Twitter API returned error {} for user {}.'.format(e.error_code, username))
             return {}, {}
